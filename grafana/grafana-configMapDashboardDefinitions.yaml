@@ -916,7 +916,7 @@ items:
     namespace: pgmon
 - apiVersion: v1
   data:
-    k8s-pgmon-cadvisor-namespace: |-          
+    k8s-pgmon-cadvisor-namespace.json: |-          
       {
         "annotations": {
           "list": [
