@@ -1,5 +1,11 @@
 prometheus与grafana在kubernetes的配置文件，开箱即用！
 
+kubernetes: 1.13.1
+```
+[root@master-0 ~]# kubectl version  --short 
+Client Version: v1.13.1
+Server Version: v1.13.1
+```
 ## 目录
 
 - [部署](#部署)
@@ -37,8 +43,8 @@ kubectl apply -f grafana/
 | v2.5.0      | prometheus          | 665534  | 9090      |
 | v0.16.0     | node_exporter       |         | 9100      |
 | 1.8.4       | addon-resizer       |         | 18880     |
-| v1.3.0      | kube-state-metrics  |         | 2379      |
-| latest      | blackbox-exporter   |         | 2379      |
+| v1.3.0      | kube-state-metrics  |         |       |
+| latest      | blackbox-exporter   |         |       |
 | 3.3.10      | etcd                |         | 2379      |
 
 ## 截图
