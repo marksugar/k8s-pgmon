@@ -32,6 +32,7 @@ kubectl apply -f node-export/
 kubectl apply -f kube-controller-schedule/
 kubectl apply -f kube-state-metrics/
 kubectl apply -f grafana/
+kubectl apply -f alertmanager/
 ```
 
 ## 版本信息

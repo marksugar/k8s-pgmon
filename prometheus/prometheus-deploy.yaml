@@ -38,6 +38,8 @@ spec:
           name: cert-file
         - mountPath: "/opt/etcd/key/"
           name: key-file
+        - mountPath: "/etc/prometheus/rules/"
+          name: k8s-pgmon-test-rules
         resources:
           requests:
             cpu: 100m
@@ -45,6 +47,39 @@ spec:
           limits:
             cpu: 500m
             memory: 2500Mi
+      - name: prometheus-configmap-reload
+        image: "jimmidyson/configmap-reload:v0.1"
+        imagePullPolicy: "IfNotPresent"
+        args:
+          - --volume-dir=/etc/prometheus/rules/
+          - --volume-dir=/etc/prometheus/
+          - --volume-dir=/etc/prometheus/
+          - --volume-dir=/opt/etcd/key/
+          - --volume-dir=/opt/etcd/crt/
+          - --webhook-url=http://localhost:9090/-/reload
+        volumeMounts:
+          - mountPath: "/prometheus"
+            name: data
+            readOnly: true
+          - mountPath: "/etc/prometheus"
+            name: config-volume
+            readOnly: true
+          - mountPath: "/opt/etcd/crt/"
+            name: cert-file
+            readOnly: true
+          - mountPath: "/opt/etcd/key/"
+            name: key-file
+            readOnly: true
+          - mountPath: "/etc/prometheus/rules/"
+            name: k8s-pgmon-test-rules
+            readOnly: true
+        resources:
+          limits:
+            cpu: 10m
+            memory: 10Mi
+          requests:
+            cpu: 10m
+            memory: 10Mi
       serviceAccountName: k8s-pgmon-prometheus
       volumes:
       - name: data
@@ -58,3 +93,6 @@ spec:
       - name: key-file
         configMap:
           name: etcd-key-file
+      - name: k8s-pgmon-test-rules
+        configMap:
+          name: k8s-pgmon-test-rules

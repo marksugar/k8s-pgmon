@@ -12,39 +12,24 @@ data:
       external_labels:
         prometheus: k8s-pgmon/k8s
         prometheus_replica: prometheus-k8s-0
+    rule_files:
+      - /etc/prometheus/rules/*.yaml
     alerting:
-      alert_relabel_configs:
-      - separator: ;
-        regex: prometheus_replica
-        replacement: $1
-        action: labeldrop
       alertmanagers:
-      - kubernetes_sd_configs:
-        - role: endpoints
-          namespaces:
-            names:
-            - pgmon
-        scheme: http
-        path_prefix: /
-        timeout: 10s
-        relabel_configs:
-        - source_labels: [__meta_kubernetes_service_name]
-          separator: ;
-          regex: alertmanager-main
-          replacement: $1
-          action: keep
-        - source_labels: [__meta_kubernetes_endpoint_port_name]
-          separator: ;
-          regex: web
-          replacement: $1
-          action: keep
-
+      - scheme: http
+        static_configs:
+        - targets:
+          - "k8s-pgmon-alertmanager:9093"
 
     scrape_configs:
     - job_name: k8s-pgmon/prometheus
       static_configs:
       - targets:
-        - localhost:9090
+        - "localhost:9090"
+    - job_name: k8s-pgmon/alertmanager
+      static_configs:
+      - targets:
+        - "k8s-pgmon-alertmanager:9093"
 
     - job_name: 'k8s-pgmon/kubernetes-cadvisor'
       kubernetes_sd_configs:
@@ -63,7 +48,8 @@ data:
         target_label: __metrics_path__
         replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor
 
-    - job_name: 'k8s-pgmon/kubernetes-nodes'
+
+    - job_name: 'k8s-pgmon/kubernetes-node-exporter'
       bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
       kubernetes_sd_configs:
       - role: node
@@ -86,11 +72,6 @@ data:
         action: replace
         target_label: __metrics_path__
         regex: (.+)
-      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-        action: replace
-        regex: ([^:]+)(?::\d+)?;(\d+)
-        replacement: $1:$2
-        target_label: __address__
       - action: labelmap
         regex: __meta_kubernetes_pod_label_(.+)
       - source_labels: [__meta_kubernetes_namespace]
@@ -99,6 +80,30 @@ data:
       - source_labels: [__meta_kubernetes_pod_name]
         action: replace
         target_label: kubernetes_pod_name
+      - source_labels: [__meta_kubernetes_pod_ip]
+        separator: ;
+        regex: (.*)
+        target_label: instance
+        replacement: $1
+        action: replace
+      - source_labels: [__meta_kubernetes_pod_container_name]
+        separator: ;
+        regex: (.*)
+        target_label: container_name
+        replacement: $1
+        action: replace
+      - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+        separator: ;
+        regex: (.*)
+        target_label: job
+        replacement: $1
+        action: replace
+      - source_labels: [__meta_kubernetes_pod_host_ip]
+        separator: ;
+        regex: (.*)
+        target_label: __address__
+        replacement: $1
+        action: replace
 
     - job_name: 'k8s-pgmon/kubernetes-ingresses'
       kubernetes_sd_configs:
@@ -173,6 +178,12 @@ data:
       - source_labels: [__meta_kubernetes_service_name]
         action: replace
         target_label: kubernetes_name
+      - source_labels: [__meta_kubernetes_pod_label_k8s_app]
+        separator: ;
+        regex: (.*)
+        target_label: job
+        replacement: $1
+        action: replace
 
     - job_name: k8s-pgmon/kube-system/kube-scheduler
       scrape_interval: 30s
@@ -225,7 +236,7 @@ data:
         target_label: pod
         replacement: $1
         action: replace
-      - source_labels: [__meta_kubernetes_service_name]
+      - source_labels: [__meta_kubernetes_pod_label_component]
         separator: ;
         regex: (.*)
         target_label: job
@@ -254,6 +265,14 @@ data:
         - __meta_kubernetes_namespace
         - __meta_kubernetes_service_name
         - __meta_kubernetes_endpoint_port_name
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - source_labels: [__meta_kubernetes_service_label_component]
+        separator: ;
+        regex: (.*)
+        target_label: job
+        replacement: $1
+        action: replace
       scheme: https
       tls_config:
         ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
@@ -269,7 +288,6 @@ data:
        insecure_skip_verify: true
        cert_file: /opt/etcd/crt/server.pem
        key_file: /opt/etcd/key/server-key.pem
-
       static_configs:
       - targets:
         - '172.25.50.16:2379'
@@ -278,3 +296,41 @@ data:
         labels:
           group: 'etcd'
 
+    - job_name: 'k8s-pgmom/kubernetes-nodes-kubelet'
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - target_label: __address__
+        replacement: kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__
+        replacement: /api/v1/nodes/${1}/proxy/metrics
+
+    - job_name: 'k8s-pgmom/kubernetes-ingresses'
+      metrics_path: /probe
+      params:
+        module: [http_2xx]
+      kubernetes_sd_configs:
+      - role: ingress
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_ingress_scheme,__address__,__meta_kubernetes_ingress_path]
+        regex: (.+);(.+);(.+)
+        replacement: ${1}://${2}${3}
+        target_label: __param_target
+      - target_label: __address__
+        replacement: k8s-pgmon-blackbox-exporter.example.com:9115
+      - source_labels: [__param_target]
+        target_label: instance
+      - action: labelmap
+        regex: __meta_kubernetes_ingress_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_ingress_name]
+        target_label: kubernetes_name
