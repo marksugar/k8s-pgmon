@@ -12,8 +12,8 @@ Server Version: v1.13.1
   - [版本](#版本信息)
   - [仪表盘](#仪表盘)
   - [警报](警报)
-    - [配置钉钉][#dingtalk]
-	- [配置微信][#wechat_config]
+    - [配置钉钉](#dingtalk)
+	- [配置微信](#wechat_config)
 
 
 ## 部署
