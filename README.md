@@ -10,8 +10,10 @@ Server Version: v1.13.1
 
 - [部署](#部署)
   - [版本](#版本信息)
-  - [截图](#截图)
-
+  - [仪表盘](#仪表盘)
+  - [警报](警报)
+    - [配置钉钉][#dingtalk]
+	- [配置微信][#wechat_config]
 
 
 ## 部署
@@ -32,8 +34,10 @@ kubectl apply -f node-export/
 kubectl apply -f kube-controller-schedule/
 kubectl apply -f kube-state-metrics/
 kubectl apply -f grafana/
+kubectl apply -f WeChat/
 kubectl apply -f alertmanager/
 ```
+
 
 ## 版本信息
 
@@ -47,22 +51,53 @@ kubectl apply -f alertmanager/
 | v1.3.0      | kube-state-metrics  |         |       |
 | latest      | blackbox-exporter   |         |       |
 | 3.3.10      | etcd                |         | 2379      |
-
-## 截图
+| master      | dingtalk            |         | 3005      |
+| None      | wechat            |         |       |
+## 仪表盘
 
 提供了如下图
 
-![1.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/1.png)
+![top.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/top.png)
 
 容器占用率
-![2.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/2.png)
+![cadvisor.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/cadvisor-brief.png)
+![host-docker](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/docker.png)
+
 kuberntes API
 ![api.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/api.png)
-主机与docker
-![docker-host.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/docker-host.png)
-![host.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/host.png)
-![host-describe](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/host-describe.png)
+node资源
+![node1.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/node1.png)
+![node2.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/node2.png)
+![host-node3](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/node3.png)
+![host-node4](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/node4.png)
 etcd
 ![etcd.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/etcd.png)
 名称空间资源
 ![namespace.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/namespace.png)
+## dingtalk
+参考[prometheus-webhook-dingtalk](https://github.com/timonwong/prometheus-webhook-dingtalk)的[Prometheus AlertManager WebHook](Prometheus AlertManager WebHook)文章
+
+修改dingtalk目录下的deploy文件中的
+```
+args:
+- "--ding.profile=pgmon=https://oapi.dingtalk.com/robot/send?access_token=XXXXXXXXXXXXX"
+- "--web.listen-address=:30005"
+- "--log.level=info"
+- "--ding.timeout=5s"
+```		
+![dingtalk.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/dingtalk.png)
+
+## wechat_config
+
+配置参考[prometheus官方的文档即可](https://prometheus.io/docs/alerting/configuration/#wechat_config)
+- corp_id: 企业微信账号唯一 ID， 可以在我的企业中查看。
+- to_party: 需要发送的组。
+- agent_id: 第三方企业应用的 ID，可以在自己创建的第三方企业应用详情页面查看。
+- api_secret: 第三方企业应用的密钥，可以在自己创建的第三方企业应用详情页面查看。
+
+微信API详情请参考[文档](https://work.weixin.qq.com/api/doc#90000/90135/90236/%E6%96%87%E6%9C%AC%E6%B6%88%E6%81%AF)。
+
+发送告警：
+![wechat.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/wechat.png)
+恢复：
+![wechat-ok.png](https://raw.githubusercontent.com/marksugar/k8s-pgmon/master/Dashboard/image/wechat-ok.png)

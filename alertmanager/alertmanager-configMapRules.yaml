@@ -2,28 +2,28 @@ apiVersion: v1
 items:
 - apiVersion: v1
   data:
-    test.yaml: |-
+    k8s-pgmon.yaml: |-
       groups:
       - name: k8s.rules
         rules:
         - expr: |
-            sum(rate(container_cpu_usage_seconds_total{job="k8s-pgmom/kubernetes-nodes-kubelet", image!="", container_name!=""}[5m])) by (namespace)
+            sum(rate(container_cpu_usage_seconds_total{job="k8s-pgmon/kubernetes-nodes-kubelet", image!="", container_name!=""}[5m])) by (namespace)
           record: namespace:container_cpu_usage_seconds_total:sum_rate
         - expr: |
             sum by (namespace, pod_name, container_name) (
-              rate(container_cpu_usage_seconds_total{job="k8s-pgmom/kubernetes-nodes-kubelet", image!="", container_name!=""}[5m])
+              rate(container_cpu_usage_seconds_total{job="k8s-pgmon/kubernetes-nodes-kubelet", image!="", container_name!=""}[5m])
             )
           record: namespace_pod_name_container_name:container_cpu_usage_seconds_total:sum_rate
         - expr: |
-            sum(container_memory_usage_bytes{job="k8s-pgmom/kubernetes-nodes-kubelet", image!="", container_name!=""}) by (namespace)
+            sum(container_memory_usage_bytes{job="k8s-pgmon/kubernetes-nodes-kubelet", image!="", container_name!=""}) by (namespace)
           record: namespace:container_memory_usage_bytes:sum
         - expr: |
-            sum by (namespace, label_name) ( sum(rate(container_cpu_usage_seconds_total{job="k8s-pgmom/kubernetes-nodes-kubelet", image!="",container_name!=""}[5m])) by (namespace, pod_name) * on (namespace, pod_name) group_left(label_name) label_replace(kube_pod_labels{job="kube-state-metrics"}, "pod_name", "$1", "pod", "(.*)")
+            sum by (namespace, label_name) ( sum(rate(container_cpu_usage_seconds_total{job="k8s-pgmon/kubernetes-nodes-kubelet", image!="",container_name!=""}[5m])) by (namespace, pod_name) * on (namespace, pod_name) group_left(label_name) label_replace(kube_pod_labels{job="kube-state-metrics"}, "pod_name", "$1", "pod", "(.*)")
             )
           record: namespace_name:container_cpu_usage_seconds_total:sum_rate
         - expr: |
             sum by (namespace, label_name) (
-              sum(container_memory_usage_bytes{job="k8s-pgmom/kubernetes-nodes-kubelet",image!="", container_name!=""}) by (pod_name, namespace)
+              sum(container_memory_usage_bytes{job="k8s-pgmon/kubernetes-nodes-kubelet",image!="", container_name!=""}) by (pod_name, namespace)
             * on (namespace, pod_name) group_left(label_name)
               label_replace(kube_pod_labels{job="kube-state-metrics"}, "pod_name", "$1", "pod", "(.*)")
             )
@@ -320,7 +320,7 @@ items:
         rules:
         - alert: AlertmanagerDown
           annotations:
-            message: Alertmanager has disappeared from Prometheus target discovery.
+            message: Alertmanager 已从 Prometheus 目标发现中消失.
             runbook_url: https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-alertmanagerdown
           expr: |
             absent(up{job="k8s-pgmon/prometheus"} == 1)
@@ -329,7 +329,7 @@ items:
             severity: critical
         - alert: CoreDNSDown
           annotations:
-            message: CoreDNS has disappeared from Prometheus target discovery.
+            message: CoreDNS 已经从 Prometheus 目标发现中消失.
             runbook_url: https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-corednsdown
           expr: |
             absent(up{job="kube-dns"} == 1)
@@ -374,10 +374,10 @@ items:
             severity: critical
         - alert: KubeletDown
           annotations:
-            message: k8s-pgmom/kubernetes-nodes-kubelet has disappeared from Prometheus target discovery.
+            message: k8s-pgmon/kubernetes-nodes-kubelet has disappeared from Prometheus target discovery.
             runbook_url: https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubeletdown
           expr: |
-            absent(up{job="k8s-pgmom/kubernetes-nodes-kubelet"} == 1)
+            absent(up{job="k8s-pgmon/kubernetes-nodes-kubelet"} == 1)
           for: 15m
           labels:
             severity: critical
@@ -652,9 +652,9 @@ items:
               free.
             runbook_url: https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubepersistentvolumeusagecritical
           expr: |
-            100 * kubelet_volume_stats_available_bytes{job="k8s-pgmom/kubernetes-nodes-kubelet"}
+            100 * kubelet_volume_stats_available_bytes{job="k8s-pgmon/kubernetes-nodes-kubelet"}
               /
-            kubelet_volume_stats_capacity_bytes{job="k8s-pgmom/kubernetes-nodes-kubelet"}
+            kubelet_volume_stats_capacity_bytes{job="k8s-pgmon/kubernetes-nodes-kubelet"}
               < 3
           for: 1m
           labels:
@@ -667,12 +667,12 @@ items:
             runbook_url: https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubepersistentvolumefullinfourdays
           expr: |
             100 * (
-              kubelet_volume_stats_available_bytes{job="k8s-pgmom/kubernetes-nodes-kubelet"}
+              kubelet_volume_stats_available_bytes{job="k8s-pgmon/kubernetes-nodes-kubelet"}
                 /
-              kubelet_volume_stats_capacity_bytes{job="k8s-pgmom/kubernetes-nodes-kubelet"}
+              kubelet_volume_stats_capacity_bytes{job="k8s-pgmon/kubernetes-nodes-kubelet"}
             ) < 15
             and
-            predict_linear(kubelet_volume_stats_available_bytes{job="k8s-pgmom/kubernetes-nodes-kubelet"}[6h], 4 * 24 * 3600) < 0
+            predict_linear(kubelet_volume_stats_available_bytes{job="k8s-pgmon/kubernetes-nodes-kubelet"}[6h], 4 * 24 * 3600) < 0
           for: 5m
           labels:
             severity: critical
@@ -732,11 +732,11 @@ items:
             severity: warning
         - alert: KubeletTooManyPods
           annotations:
-            message: k8s-pgmom/kubernetes-nodes-kubelet {{ $labels.instance }} is running {{ $value }} Pods, close
+            message: k8s-pgmon/kubernetes-nodes-kubelet {{ $labels.instance }} is running {{ $value }} Pods, close
               to the limit of 110.
             runbook_url: https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#alert-name-kubelettoomanypods
           expr: |
-            kubelet_running_pod_count{job="k8s-pgmom/kubernetes-nodes-kubelet"} > 110 * 0.9
+            kubelet_running_pod_count{job="k8s-pgmon/kubernetes-nodes-kubelet"} > 110 * 0.9
           for: 15m
           labels:
             severity: warning
@@ -837,13 +837,6 @@ items:
           for: 10m
           labels:
             severity: warning
-        - alert: DeadMansSwitch
-          annotations:
-            message: This is a DeadMansSwitch meant to ensure that the entire alerting pipeline
-              is functional.
-          expr: vector(1)
-          labels:
-            severity: none
       - name: kube-prometheus-node-alerting.rules
         rules:
         - alert: NodeDiskRunningFull
@@ -967,6 +960,6 @@ items:
             severity: warning
   kind: ConfigMap
   metadata:
-    name: k8s-pgmon-test-rules
+    name: k8s-pgmon-rules
     namespace: pgmon
 kind: ConfigMapList

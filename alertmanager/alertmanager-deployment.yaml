@@ -23,7 +23,7 @@ spec:
         scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       containers:
-        - name: prometheus-alertmanager
+        - name: alertmanager
           image: "prom/alertmanager:v0.15.3"
           imagePullPolicy: "IfNotPresent"
           args:
@@ -39,11 +39,16 @@ spec:
             initialDelaySeconds: 30
             timeoutSeconds: 30
           volumeMounts:
-            - name: config-volume
+            - name: k8s-pgmon-alertmanager-config
               mountPath: /etc/config
             - name: storage-volume
               mountPath: "/data"
               subPath: ""
+            - name: k8s-pgmon-alertmanager-wechattmpl
+              mountPath: "/etc/config/alert"
+              readOnly: true
+            - name: timezone
+              mountPath: /etc/localtime
           resources:
             limits:
               cpu: 10m
@@ -58,7 +63,7 @@ spec:
             - --volume-dir=/etc/config
             - --webhook-url=http://localhost:9093/-/reload
           volumeMounts:
-            - name: config-volume
+            - name: k8s-pgmon-alertmanager-config
               mountPath: /etc/config
               readOnly: true
           resources:
@@ -68,9 +73,19 @@ spec:
             requests:
               cpu: 10m
               memory: 10Mi
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - 10.10.100.100
       volumes:
         - emptyDir: {}
           name: storage-volume
-        - name: config-volume
+        - name: k8s-pgmon-alertmanager-config
           configMap:
-            name: k8s-pgmon-alertmanager-config
+            name: k8s-pgmon-alertmanager-config-wechat
+        - name: k8s-pgmon-alertmanager-wechattmpl
+          secret:
+            secretName: k8s-pgmon-alertmanager-wechattmpl
+        - name: timezone
+          hostPath:
+            path: /usr/share/zoneinfo/Asia/Shanghai

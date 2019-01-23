@@ -39,7 +39,7 @@ spec:
         - mountPath: "/opt/etcd/key/"
           name: key-file
         - mountPath: "/etc/prometheus/rules/"
-          name: k8s-pgmon-test-rules
+          name: k8s-pgmon-rules
         resources:
           requests:
             cpu: 100m
@@ -71,7 +71,7 @@ spec:
             name: key-file
             readOnly: true
           - mountPath: "/etc/prometheus/rules/"
-            name: k8s-pgmon-test-rules
+            name: k8s-pgmon-rules
             readOnly: true
         resources:
           limits:
@@ -93,6 +93,6 @@ spec:
       - name: key-file
         configMap:
           name: etcd-key-file
-      - name: k8s-pgmon-test-rules
+      - name: k8s-pgmon-rules
         configMap:
-          name: k8s-pgmon-test-rules
+          name: k8s-pgmon-rules
