@@ -16,7 +16,7 @@ spec:
         app: grafana
     spec:
       containers:
-      - image: marksugar/grafana:5.4.2-p
+      - image: marksugar/grafana:5.4.3-p
         name: grafana
         ports:
         - containerPort: 3000
