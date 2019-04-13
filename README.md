@@ -1,4 +1,4 @@
-prometheus与grafana在kubernetes的配置文件，开箱即用！(暂停更新，仅限于学习使用)
+prometheus与grafana在kubernetes的配置文件，开箱即用！(**暂停更新，仅限于学习使用**)
 
 kubernetes: 1.13.1
 ```
