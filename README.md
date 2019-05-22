@@ -39,8 +39,8 @@ kubectl apply -f kube-controller-schedule/
 kubectl apply -f kube-state-metrics/
 kubectl apply -f grafana/
 kubectl apply -f WeChat/
-kubectl apply -f prometheus/
 kubectl apply -f alertmanager/
+kubectl apply -f prometheus/
 ```
 
 你可以使用ip:端口来访问，这些分别是
