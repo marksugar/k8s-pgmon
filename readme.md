@@ -16,7 +16,71 @@
 
 
 
-[TOC]
+- [1.clone代码](#1clone)
+- [2.修改副本](#2修改副本)
+- [3.修改端口配置](#3修改端口配置)
+- [4.部署](#4.部署)
+  - [4.1 集群监控添加](#41-集群监控添加)
+  - [4.2 etcd](#42-etcd)
+  - [4.3 kube-proxy](#43-kube-proxy)
+  - [4.4 ingress-nginx](#44-ingress-nginx)
+- [5.修改存储位置](#5修改存储位置)
+  - [5.1 prometheus](##51-prometheus)
+  - [5.2 grafana](#52-grafana)
+- [6.修改时区](#6修改时区)
+- [7.webhook](#7webhook)
+- [8.监控node](#8监控node)
+  - [8.1 安装docker](#81-安装docker)
+- [9.监控mysql](#9监控mysql)
+  - [9.1 mysql 监控参数](#91-mysql-监控参数)
+  - [9.2 node_exporter监控其他](#92-node_exporter监控其他)
+- [10.监控 rabbitmq](#10监控-rabbitmq)
+- [11.监控mongodb](#11监控mongodb)
+- [12.监控kafka](#12监控kafka)
+- [13.监控windows](#13监控windows)
+- [14.监控nginx](#14监控nginx)
+- [15.监控NFS](#15监控NFS)
+- [16.jvm](#16jvm)
+  - [16.1 redis](#161-redis)
+- [16.2 添加警报项](#162-添加警报项)
+- [16.dingtalk1](#16dingtalk1)
+- [17.dingtalk2](#17dingtalk2)
+  - [17.0 config](#170-config)
+    - [17.0.1 关闭](#1701-关闭)
+    - [17.1 集群外主机rule](#171-集群外主机rule)
+      - [linux](#linux)
+      - [磁盘使用率](#磁盘使用率)
+      - [nginx](#nginx)
+      - [redis](#redis)
+      - [rabbitmq](#rabbitmq)
+      - [mysql](#mysql)
+      - [kafka](#kafka)
+      - [mongodb](#mongodb)
+      - [obd](#obd)
+      - [windows](#windows)
+      - [etcd](#etcd)
+    - [17.2 告警分组](#172-告警分组)
+      - [17.2.1 8060.yaml](#1721-8060yaml)
+      - [17.2.2 8061.yaml](#1722-8061yaml)
+- [18.修改原有的规则](#18.修改原有的规则)
+- [19.外部监控k8s](#19外部监控k8s)
+  - [19.1 授权](#191-授权)
+  - [19.2 compose安装prom](#192-compose安装prom)
+  - [19.3 alertmanager](#193-alertmanager)
+    - [19.3.1 报警模板](#1931-报警模板)
+  - [19.4 alert](#194-alert)
+  - [19.5 配置钉钉alertmanager](#195-配置钉钉alertmanager)
+    - [19.5.1 grafana模板](#1951-grafana模板)
+- [20.ingress](#20ingress)
+  - [20.1 打标签](#201-打标签)
+  - [20.2 alertmanager](#202-alertmanager)	
+  - [20.3 grafana](#203-grafana)
+  - [20.4 prometheus](#204-prometheus)
+  - [20.5 nginx代理](#205-nginx代理)
+- [21.模板](#21模板)
+- [22.钉钉分组模板](#22钉钉分组)
+
+
 
 时间同步： 
 
@@ -2615,7 +2679,7 @@ spec:
 
 模板：https://github.com/oliver006/redis_exporter/blob/master/contrib/grafana_prometheus_redis_dashboard.json
 
-## 16.2添加磁盘警报项
+## 16.2 添加磁盘警报项
 
 https://awesome-prometheus-alerts.grep.to/
 
