@@ -12,7 +12,71 @@
 
 ## 探讨
 
-钉钉群号: 32040586
+这只是一个笔记的整理，如果有错误之处请指正。如果你有兴趣一起来讨论，欢迎加入[dingtalk](https://www.dingtalk.com/)群号: 32040586
+
+- [1.clone代码](##1.clone)
+- [2.修改副本](##2.修改副本)
+- [3.修改端口配置](##3.修改端口配置)
+- [4.部署](##4.部署)
+  - [4.1 集群监控添加](###4.1 集群监控添加)
+  - [4.2 etcd](###4.2 etcd)
+  - [4.3 kube-proxy](###4.3 kube-proxy)
+  - [4.4 ingress-nginx](###4.4 ingress-nginx)
+- [5.修改存储位置](##5.修改存储位置)
+  - [5.1 prometheus](###5.1 prometheus)
+  - [5.2 grafana](###5.2 grafana)
+- [6.修改时区](##6.修改时区)
+- [7.webhook](##7.webhook)
+- [8.监控node](##8.监控node)
+  - [8.1 安装docker](###8.1 安装docker)
+- [9.监控mysql](##9.监控mysql)
+  - [9.1 mysql 监控参数](###9.1 mysql 监控参数)
+  - [9.2 node_exporter监控其他](###9.2 node_exporter监控其他)
+- [10.监控 rabbitmq](##10.监控 rabbitmq)
+- [11.监控mongodb](##11.监控mongodb)
+- [12.监控kafka](##12.监控kafka)
+- [13.监控windows](##13.监控windows)
+- [14.监控nginx](##14.监控nginx)
+- [15.监控NFS](##15.监控NFS)
+- [16.jvm](##16.jvm)
+  - [16.1 redis](###16.1 redis)
+- [16.2 添加警报项](##16.2 添加警报项)
+- [16.dingtalk1](##16.dingtalk1)
+- [17.dingtalk2](##17.dingtalk2)
+  - [17.0 config](###17.0 config)
+    - [17.0.1 关闭](####17.0.1 关闭)
+    - [17.1 集群外主机rule](#####17.1 集群外主机rule)
+      - [linux](#####linux)
+      - [磁盘使用率](#####磁盘使用率)
+      - [nginx](#####nginx)
+      - [redis](#####redis)
+      - [rabbitmq](#####rabbitmq)
+      - [mysql](#####mysql)
+      - [kafka](#####kafka)
+      - [mongodb](#####mongodb)
+      - [obd](#####obd)
+      - [windows](#####windows)
+      - [etcd](#####etcd)
+    - [17.2 告警分组](####17.2 告警分组)
+      - [17.2.1 8060.yaml](#####17.2.1 8060.yaml)
+      - [17.2.2 8061.yaml](#####17.2.2 8061.yaml)
+- [18.修改原有的规则](##18.修改原有的规则)
+- [19.外部监控k8s](##19.外部监控k8s)
+  - [19.1 授权](###19.1 授权)
+  - [19.2 compose安装prom](###19.2 compose安装prom)
+  - [19.3 alertmanager](###19.3 alertmanager)
+    - [19.3.1 报警模板](####19.3.1 报警模板)
+  - [19.4 alert](###19.4 alert)
+  - [19.5 配置钉钉alertmanager](###19.5 配置钉钉alertmanager)
+    - [19.5.1 grafana模板](####19.5.1 grafana模板)
+- [20.ingress](##20.ingress)
+  - [20.1 打标签](###20.1 打标签)
+  - [20.2 alertmanager](###20.2 alertmanager)	
+  - [20.3 grafana](###20.3 grafana)
+  - [20.4 prometheus](###20.4 prometheus)
+  - [20.5 nginx代理](###20.5 nginx代理)
+- [21.模板](##21.模板)
+- [22.钉钉分组模板](##22.钉钉分组)
 
 时间同步： 
 
@@ -36,7 +100,7 @@ systemctl restart chronyd ; systemctl enable chronyd
 
 如果服务器和访问prometneus的时间不一致会提示: `Warning: Error fetching server time: Detected 48:181518 seconds time difference between your browser and the server.`此时需要将客户端和服务器同步一致即可
 
-## 1 clone
+## 1.clone
 
 k8s集群版本1.20.2
 
@@ -147,7 +211,7 @@ sed -i 's@grafana/grafana:7.5.4@registry.cn-hangzhou.aliyuncs.com/marksugar-k8s/
 sed -i 's@directxman12/k8s-prometheus-adapter:v0.8.4@registry.cn-hangzhou.aliyuncs.com/marksugar-k8s/k8s-prometheus-adapter:0.8.4@g' *.yaml
 ```
 
-## 2 修改副本
+## 2.修改副本
 
 我们修改配置文件，每个应用只启动一个`replicas: 1`。替换他们`sed -i 's/replicas: .*/replicas: 1/g'`
 
@@ -284,7 +348,7 @@ sed -i 's/replicas: .*/replicas: 1/g' prometheus-prometheus.yaml
 >
 > 
 
-## 3 修改端口配置
+## 3.修改端口配置
 
 资源
 
@@ -391,7 +455,7 @@ spec:
 ...    
 ```
 
-## 4 部署
+## 4.部署
 
 ```
 [root@master1 ~]# kubectl apply -f kube-prometheus/manifests/setup/
@@ -486,7 +550,7 @@ statefulset.apps/prometheus-k8s      1/1     47s
 
 通过30090，30091，30092访问
 
-###  集群监控添加
+###  4.1 集群监控添加
 
 - 二进制安装需要配置
 
@@ -658,7 +722,7 @@ spec:
 
 而后创建上面的Service
 
-### etcd
+### 4.2 etcd
 
 - pod
 
@@ -882,7 +946,7 @@ spec:
     - monitoring
 ```
 
-### kube-proxy
+### 4.3 kube-proxy
 
 ```
 apiVersion: v1
@@ -943,7 +1007,7 @@ spec:
     - monitoring
 ```
 
-### ingress-nginx
+### 4.4 ingress-nginx
 
 ```
 curl 10.0.1.201:10254/metrics
@@ -1029,9 +1093,9 @@ rules:
 
 
 
-## 5 修改存储位置
+## 5.修改存储位置
 
-### prometheus
+### 5.1 prometheus
 
 创建一个新的class.yaml
 
@@ -1092,7 +1156,7 @@ nfs查看
 34M	monitoring-prometheus-k8s-db-prometheus-k8s-0-pvc-5a72084e-a840-4a76-a8f8-a012ea6a8278/prometheus-db/
 ```
 
-### grafana
+### 5.2 grafana
 
 创建grafana-pvc.yaml
 
@@ -1229,7 +1293,7 @@ grafana-deployment.yaml
           path: /usr/share/zoneinfo
 ```
 
-## 7. webhook
+## 7.webhook
 
 ```
 apiVersion: apps/v1
@@ -1321,9 +1385,9 @@ metadata:
   namespace: monitoring
 ```
 
-## 8 监控node
+## 8.监控node
 
-### 安装docker
+### 8.1 安装docker
 
 ```
 yum install -y yum-utils
@@ -1581,7 +1645,7 @@ spec:
 
 
 
-## 9 监控mysql
+## 9.监控mysql
 
 ```
 apiVersion: v1
@@ -1680,7 +1744,7 @@ firewall-cmd --reload
 
 
 
-### mysql 监控参数
+### 9.1 mysql 监控参数
 
 ```
 version: '3.8'
@@ -1901,7 +1965,7 @@ mysql_perf_schema_external_lock_waits_seconds_total
 mysql_perf_schema_external_lock_waits_total
 ```
 
-### node_exporter监控其他
+### 9.2 node_exporter监控其他
 
 下载node_exporter
 
@@ -1998,7 +2062,7 @@ spec:
 
 
 
-## 10 监控 rabbitmq
+## 10.监控 rabbitmq
 
 ```
 version: '3.8'
@@ -2120,7 +2184,7 @@ nohup ./rabbitmq_exporter -config-file config.json > rabbitmq_exporter.log 2>&1 
 
 
 
-## 11 监控mongodb
+## 11.监控mongodb
 
 mongodb配置
 
@@ -2247,7 +2311,7 @@ spec:
 
 `dashboard: https://grafana.com/grafana/dashboards/2583`
 
-## 12 监控kafka
+## 12.监控kafka
 
 
 
@@ -2345,7 +2409,7 @@ https://grafana.com/grafana/dashboards/14281
 | `kafka_consumergroup_current_offset` | 消费者组在主题/分区的当前偏移量     |
 | `kafka_consumergroup_lag`            | 当前消费者组在主题/分区上的近似滞后 |
 
-## 13 监控windows
+## 13.监控windows
 
 `download : https://github.com/prometheus-community/windows_exporter/releases`
 
@@ -2404,7 +2468,7 @@ spec:
 
 `dashboard: https://grafana.com/grafana/dashboards/10467`
 
-## 14 监控nginx
+## 14.监控nginx
 
 开启
 
@@ -2507,13 +2571,13 @@ spec:
 
 
 
-## 15 监控NFS
+## 15.监控NFS
 
 NFS集成在node-exporter中
 
 `dashboard: https://grafana.com/grafana/dashboards/14614`
 
-## 16 jvm
+## 16.jvm
 
 https://micrometer.io/
 
@@ -2611,7 +2675,7 @@ spec:
 
 模板：https://github.com/oliver006/redis_exporter/blob/master/contrib/grafana_prometheus_redis_dashboard.json
 
-## 16 添加警报项
+## 16.2添加磁盘警报项
 
 https://awesome-prometheus-alerts.grep.to/
 
@@ -2643,7 +2707,7 @@ spec:
 
 
 
-## 16 dingtalk1
+## 16.dingtalk1
 
 部署即可
 
@@ -3080,7 +3144,7 @@ kubectl apply -f alertmanager-secret.yaml
 
 
 
-## 17 dingtalk2
+## 17.dingtalk2
 
 可部署dingtalk1
 
@@ -3195,7 +3259,7 @@ stringData:
         equal: ['alertname', 'dev', 'instance']
 ```
 
-### config
+### 17.0 config
 
 config下有两个文件
 
@@ -3302,7 +3366,7 @@ service/alertmanager-webhook-dingtalk unchanged
 deployment.apps/alertmanager-webhook-dingtalk unchanged
 ```
 
-### 17.0 关闭
+### 17.0.1 关闭
 
 ```
 ...
@@ -4185,7 +4249,7 @@ stringData:
         equal: ['alertname', 'dev', 'instance']
 ```
 
-#### 8060.yaml
+#### 17.2.1 8060.yaml
 
 发送到8060的配置 
 
@@ -4366,7 +4430,7 @@ data:
 
 
 
-#### 8061.yaml
+#### 17.2.2 8061.yaml
 
 发送到8061的配置
 
@@ -4545,7 +4609,7 @@ data:
 
 
 
-## 18 修改原有的规则
+## 18.修改原有的规则
 
 查看
 
@@ -4609,7 +4673,7 @@ prometheus-operator-rules         53d
   
   https://blog.csdn.net/alex_yangchuansheng/article/details/109063996
 
-## 19 外部监控k8s
+## 19.外部监控k8s
 
 ### 19.1 授权
 
@@ -5984,12 +6048,12 @@ templates:
 
 
 
-#### grafana模板
+#### 19.5.1 grafana模板
 
 - Cadvisor: 14282
 - node: 8919
 
-## 20 ingress
+## 20.ingress
 
 ```
 apiVersion: v1
@@ -6298,7 +6362,7 @@ spec:
       - operator: Exists
 ```
 
-#### 打标签
+###20.1 打标签
 
 ```
 # 我们现在来打标签
@@ -6308,7 +6372,7 @@ node/192.168.63.2 labeled
 node/192.168.63.3 labeled
 ```
 
-### alertmanager
+###20.2  alertmanager
 
 ```
 apiVersion: extensions/v1beta1
@@ -6327,7 +6391,7 @@ spec:
             path: /
 ```
 
-### grafana
+### 20.3 grafana
 
 ```
 apiVersion: extensions/v1beta1
@@ -6346,7 +6410,7 @@ spec:
             path: /
 ```
 
-### prometheus
+### 20.4 prometheus
 
 ```
 apiVersion: extensions/v1beta1
@@ -6365,7 +6429,7 @@ spec:
             path: /
 ```
 
-### nginx代理
+### 20.5 nginx代理
 
 proxy.conf
 
@@ -6437,6 +6501,15 @@ server {
 }
 ```
 
-## 21 模板
+## 21.模板
 
 微服务：https://grafana.com/grafana/dashboards/10341
+
+## 22.钉钉分组
+
+```
+kubectl apply -f many.yaml
+kustomize build  dingtalk-8060/ | kubectl -f -
+kustomize build  dingtalk-8061/ | kubectl -f -
+```
+
