@@ -28,7 +28,7 @@
   - [5.1 prometheus](##51-prometheus)
   - [5.2 grafana](#52-grafana)
 - [6.修改时区](#6修改时区)
-- [7.webhook](#7webhook)
+- [7.事件webhook](#7事件webhook)
 - [8.监控node](#8监控node)
   - [8.1 安装docker](#81-安装docker)
 - [9.监控mysql](#9监控mysql)
@@ -44,7 +44,7 @@
   - [16.1 redis](#161-redis)
 - [16.2 添加警报项](#162-添加警报项)
 - [16.dingtalk1](#16dingtalk1)
-- [17.dingtalk2](#17dingtalk2)
+- [17.告警配置]()
   - [17.0 config](#170-config)
     - [17.0.1 关闭](#1701-关闭)
     - [17.1 集群外主机rule](#171-集群外主机rule)
@@ -61,7 +61,6 @@
       - [etcd](#etcd)
     - [17.2 告警分组](#172-告警分组)
       - [17.2.1 8060.yaml](#1721-8060yaml)
-      - [17.2.2 8061.yaml](#1722-8061yaml)
 - [18.修改原有的规则](#18.修改原有的规则)
 - [19.外部监控k8s](#19外部监控k8s)
   - [19.1 授权](#191-授权)
@@ -1297,7 +1296,7 @@ grafana-deployment.yaml
           path: /usr/share/zoneinfo
 ```
 
-## 7.webhook
+## 7.事件webhook
 
 ```
 apiVersion: apps/v1
@@ -2709,9 +2708,9 @@ spec:
       for: 3m
 ```
 
+## 16.dingtalk测试
 
-
-## 16.dingtalk1
+- 直接使用**one-latest.yml**进行修改钉钉密钥即可，或者在17.2 告警分组中复制即可  
 
 部署即可
 
@@ -3148,7 +3147,7 @@ kubectl apply -f alertmanager-secret.yaml
 
 
 
-## 17.dingtalk2
+## 17.告警配置
 
 可部署dingtalk1
 
@@ -4203,8 +4202,8 @@ curl "https://oapi.dingtalk.com/robot/send?access_token=TOKEN" -H "Content-Type:
 
 我们通过两个分组来区分告警，分别是所有和critical，并创建两个群，在两个群分别创建两个机器人，通过webhook分别发送到两个群。
 
-- webhook2作为全局的告警
-- webhookcritical发送critical的日志
+- webhookw作为全局的告警
+- webhooke发送critical的日志
 
 必要条件： 
 
@@ -4227,24 +4226,24 @@ stringData:
       group_by: ['alertname']
       group_wait: 10s
       group_interval: 10s
-      repeat_interval: 45m
-      receiver: 'webhook2'
+      repeat_interval: 12h
+      receiver: 'webhookw'
       routes:
-      - receiver: 'webhookcritical'
+      - receiver: 'webhooke'
         match:
           severity: 'critical'
-      - receiver: 'webhook2'
+      - receiver: 'webhookw'
         match:
           severity: '~(warning)$'
     receivers:
-    - name: 'webhook2'
+    - name: 'webhookw'
       webhook_configs:
       - send_resolved: true
-        url: 'http://webhook-dingtalk:8060/dingtalk/webhook/send'
-    - name: 'webhookcritical'
+        url: 'http://webhook-dingtalk:8060/dingtalk/webhook1/send'
+    - name: 'webhooke'
       webhook_configs:
       - send_resolved: true
-        url: 'http://webhook-dingtalk1:8061/dingtalk/webhook/send'
+        url: 'http://webhook-dingtalk:8060/dingtalk/webhook2/send'
     inhibit_rules:
       - source_match:
           severity: 'critical'
@@ -4260,6 +4259,122 @@ stringData:
 - warning
 
 ```
+apiVersion: v1
+data:
+  config.yaml: |
+    templates:
+      - /config/template.tmpl
+    targets:
+      webhook1:
+        url: https://oapi.dingtalk.com/robot/send?access_token=ee2d09e90b0d12
+        secret: SECd9242c03ffac2277f0c9
+      webhook2:
+        url: https://oapi.dingtalk.com/robot/send?access_token=0102d8ed764e49
+        secret: SEC9f447197ae2795ff2bed7abd5b042e26e4ac51f
+  template.tmpl: |
+    {{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
+    {{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver }}{{ end }}
+
+    {{ define "__text_alert_list" }}{{ range . }}
+    **Labels**
+    {{ range .Labels.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+    {{ end }}
+    **Annotations**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+    {{ end }}
+    **Source:** [{{ .GeneratorURL }}]({{ .GeneratorURL }})
+    {{ end }}{{ end }}
+
+    {{ define "default.__text_alert_list" }}{{ range . }}
+    ---
+    **告警级别:** {{ .Labels.severity | upper }}
+
+    **触发时间:** {{ dateInZone "2006.01.02 15:04:05" (.StartsAt) "Asia/Shanghai" }}
+
+    **事件信息:**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+
+
+    {{ end }}
+
+    **事件标签:**
+    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | markdown | html }}
+    {{ end }}{{ end }}
+    {{ end }}
+    {{ end }}
+    {{ define "default.__text_alertresovle_list" }}{{ range . }}
+    ---
+    **告警级别:** {{ .Labels.severity | upper }}
+
+    **触发时间:** {{ dateInZone "2006.01.02 15:04:05" (.StartsAt) "Asia/Shanghai" }}
+
+    **结束时间:** {{ dateInZone "2006.01.02 15:04:05" (.EndsAt) "Asia/Shanghai" }}
+
+    **事件信息:**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+
+
+    {{ end }}
+
+    **事件标签:**
+    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | markdown | html }}
+    {{ end }}{{ end }}
+    {{ end }}
+    {{ end }}
+
+    {{/* Default */}}
+    {{ define "default.title" }}{{ template "__subject" . }}{{ end }}
+    {{ define "default.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
+    {{ if gt (len .Alerts.Firing) 0 -}}
+
+
+    **====⚠️⚠️⚠️trigger alarm====**
+
+    {{ template "default.__text_alert_list" .Alerts.Firing }}
+
+
+    {{- end }}
+
+    {{ if gt (len .Alerts.Resolved) 0 -}}
+    **====[烟花]recover alarm====**
+    {{ template "default.__text_alertresovle_list" .Alerts.Resolved }}
+
+
+    {{- end }}
+    {{- end }}
+
+    {{/* Legacy */}}
+    {{ define "legacy.title" }}{{ template "__subject" . }}{{ end }}
+    {{ define "legacy.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
+    {{ template "__text_alert_list" .Alerts.Firing }}
+    {{- end }}
+
+    {{/* Following names for compatibility */}}
+    {{ define "ding.link.title" }}{{ template "default.title" . }}{{ end }}
+    {{ define "ding.link.content" }}{{ template "default.content" . }}{{ end }}
+kind: ConfigMap
+metadata:
+  labels:
+    app: webhook-dingtalk
+  name: webhook-dingtalk
+  namespace: monitoring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: webhook-dingtalk
+  name: webhook-dingtalk
+  namespace: monitoring
+spec:
+  ports:
+  - name: http
+    port: 8060
+    protocol: TCP
+    targetPort: 8060
+  selector:
+    app: webhook-dingtalk
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -4278,340 +4393,26 @@ spec:
         app: webhook-dingtalk
     spec:
       containers:
-      - image: marksugar/k8s-prometheus:prometheus_dingtalk_v0.2
-        name: webhook-dingtalk
-        args:
+      - args:
         - --web.listen-address=:8060
-        - --config.file=/etc/prometheus-webhook-dingtalk/config.yml
-        volumeMounts:
-        - name: webdingtalk-configmap
-          mountPath: /etc/prometheus-webhook-dingtalk/
-        - name: webdingtalk-template
-          mountPath: /etc/prometheus-webhook-dingtalk/templates/
+        - --config.file=/config/config.yaml
+        image: marksugar/k8s-prometheus:prometheus_dingtalk_v2.0.0
+        name: webhook-dingtalk
         ports:
         - containerPort: 8060
-          protocol: TCP
-      imagePullSecrets:
-        - name: IfNotPresent
-      volumes:
-        - name: webdingtalk-configmap
-          configMap:
-            name: dingtalk-config
-        - name: webdingtalk-template
-          configMap:
-            name: dingtalk-template       
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: webhook-dingtalk
-  name: webhook-dingtalk
-  namespace: monitoring
-spec:
-  ports:
-  - name: http
-    port: 8060
-    protocol: TCP
-    targetPort: 8060
-    selector:
-    app: webhook-dingtalk
-    type: ClusterIP
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dingtalk-config
-  namespace: monitoring
-  labels:
-    app: dingtalk-config
-data:
-  config.yml: |
-    templates:
-      - /etc/prometheus-webhook-dingtalk/templates/default.tmpl
-    targets:
-      webhook:
-        url: https://oapi.dingtalk.com/robot/send?access_token=a452bf5a83ef2f036ec94e84e299a824f92106b9f74fff
-        secret: SEC3111192e1af62bde446eb9855c324d38038
-        message:
-          title: '{{ template "ding.link.title" . }}'
-          text: '{{ template "ding.link.content" . }}'
-```
-
-
-
-```
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dingtalk-template
-  namespace: monitoring
-  labels:
-    app: dingtalk-template
-data:
-  default.tmpl: |
-    {{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
-    {{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver }}{{ end }}
-
-    {{ define "__text_alert_list" }}{{ range . }}
-    **Labels**
-    {{ range .Labels.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
-    {{ end }}
-    **Annotations**
-    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
-    {{ end }}
-    **Source:** [{{ .GeneratorURL }}]({{ .GeneratorURL }})
-    {{ end }}{{ end }}
-    
-    {{ define "default.__text_alert_list" }}{{ range . }}
-    ---
-    **alert level:** {{ .Labels.severity | upper }}
-    
-    **trigger time:** {{ dateInZone "2006.01.02 15:04:05" (.StartsAt) "Asia/Shanghai" }}
-    
-    **event info:**
-    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
-
-
-    {{ end }}
-    
-    **event label:**
-    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | markdown | html }}
-    {{ end }}{{ end }}
-    {{ end }}
-    {{ end }}
-    {{ define "default.__text_alertresovle_list" }}{{ range . }}
-    ---
-    **alert level:** {{ .Labels.severity | upper }}
-    
-    **trigger time:** {{ dateInZone "2006.01.02 15:04:05" (.StartsAt) "Asia/Shanghai" }}
-    
-    **end time:** {{ dateInZone "2006.01.02 15:04:05" (.EndsAt) "Asia/Shanghai" }}
-    
-    **event info:**
-    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
-
-
-    {{ end }}
-    
-    **event label:**
-    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | markdown | html }}
-    {{ end }}{{ end }}
-    {{ end }}
-    {{ end }}
-    
-    {{/* Default */}}
-    {{ define "default.title" }}{{ template "__subject" . }}{{ end }}
-    {{ define "default.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
-    {{ if gt (len .Alerts.Firing) 0 -}}
-    
-    ![20210716143611.png](https://pic5.58cdn.com.cn/nowater/webim/big/n_v27ab5f3b496a2419ba8ae8b3cf27960f0.png)
-    
-    **====⚠️⚠️⚠️trigger alarm====**
-    {{ template "default.__text_alert_list" .Alerts.Firing }}
-
-
-    {{- end }}
-    
-    {{ if gt (len .Alerts.Resolved) 0 -}}
-    **====[烟花]recover alarm====**	
-    {{ template "default.__text_alertresovle_list" .Alerts.Resolved }}
-
-
-    {{- end }}
-    {{- end }}
-    
-    {{/* Legacy */}}
-    {{ define "legacy.title" }}{{ template "__subject" . }}{{ end }}
-    {{ define "legacy.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
-    {{ template "__text_alert_list" .Alerts.Firing }}
-    {{- end }}
-    
-    {{/* Following names for compatibility */}}
-    {{ define "ding.link.title" }}{{ template "default.title" . }}{{ end }}
-    {{ define "ding.link.content" }}{{ template "default.content" . }}{{ end }}
-```
-
-
-
-#### 17.2.2 8061.yaml
-
-发送到8061的配置
-
-```
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    app: webhook-dingtalk1
-  name: webhook-dingtalk1
-  namespace: monitoring
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: webhook-dingtalk1
-  template:
-    metadata:
-      labels:
-        app: webhook-dingtalk1
-    spec:
-      containers:
-      - image: marksugar/k8s-prometheus:prometheus_dingtalk_v0.2
-        name: webhook-dingtalk1
-        args:
-        - --web.listen-address=:8061
-        - --config.file=/etc/prometheus-webhook-dingtalk/config.yml
+          name: http
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
         volumeMounts:
-        - name: webdingtalk-configmap1
-          mountPath: /etc/prometheus-webhook-dingtalk/
-        - name: webdingtalk-template1
-          mountPath: /etc/prometheus-webhook-dingtalk/templates/
-        ports:
-        - containerPort: 8061
-          protocol: TCP
-      imagePullSecrets:
-        - name: IfNotPresent
+        - mountPath: /config
+          name: config
       volumes:
-        - name: webdingtalk-configmap1
-          configMap:
-            name: dingtalk-config1
-        - name: webdingtalk-template1
-          configMap:
-            name: dingtalk-template1
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: webhook-dingtalk1
-  name: webhook-dingtalk1
-  namespace: monitoring
-spec:
-  ports:
-  - name: http
-    port: 8061
-    protocol: TCP
-    targetPort: 8061
-    selector:
-    app: webhook-dingtalk1
-    type: ClusterIP
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dingtalk-config1
-  namespace: monitoring
-  labels:
-    app: dingtalk-config1
-data:
-  config.yml: |
-    templates:
-      - /etc/prometheus-webhook-dingtalk/templates/default.tmpl
-    targets:
-      webhook:
-        url: https://oapi.dingtalk.com/robot/send?access_token=cdb633bc3b82398e90899d5a7d1349ec0d798547e
-        secret: SECb0039317816c114b6f5d995093f0
-        message:
-          title: '{{ template "ding.link.title" . }}'
-          text: '{{ template "ding.link.content" . }}'
+      - configMap:
+          name: webhook-dingtalk
+        name: config
 ```
-
-dingtalk-template1
-
-```
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: dingtalk-template1
-  namespace: monitoring
-  labels:
-    app: dingtalk-template1
-data:
-  default.tmpl: |
-    {{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
-    {{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver }}{{ end }}
-
-    {{ define "__text_alert_list" }}{{ range . }}
-    **Labels**
-    {{ range .Labels.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
-    {{ end }}
-    **Annotations**
-    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
-    {{ end }}
-    **Source:** [{{ .GeneratorURL }}]({{ .GeneratorURL }})
-    {{ end }}{{ end }}
-    
-    {{ define "default.__text_alert_list" }}{{ range . }}
-    ---
-    **alert level:** {{ .Labels.severity | upper }}
-    
-    **trigger time:** {{ dateInZone "2006.01.02 15:04:05" (.StartsAt) "Asia/Shanghai" }}
-    
-    **event info:**
-    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
-
-
-    {{ end }}
-    
-    **event label:**
-    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | markdown | html }}
-    {{ end }}{{ end }}
-    {{ end }}
-    {{ end }}
-    {{ define "default.__text_alertresovle_list" }}{{ range . }}
-    ---
-    **alert level:** {{ .Labels.severity | upper }}
-    
-    **trigger time:** {{ dateInZone "2006.01.02 15:04:05" (.StartsAt) "Asia/Shanghai" }}
-    
-    **end time:** {{ dateInZone "2006.01.02 15:04:05" (.EndsAt) "Asia/Shanghai" }}
-    
-    **event info:**
-    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
-
-
-    {{ end }}
-    
-    **event label:**
-    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | markdown | html }}
-    {{ end }}{{ end }}
-    {{ end }}
-    {{ end }}
-    
-    {{/* Default */}}
-    {{ define "default.title" }}{{ template "__subject" . }}{{ end }}
-    {{ define "default.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
-    {{ if gt (len .Alerts.Firing) 0 -}}
-    
-    ![20210716143611.png](https://pic5.58cdn.com.cn/nowater/webim/big/n_v27ab5f3b496a2419ba8ae8b3cf27960f0.png)
-    
-    **====⚠️⚠️⚠️trigger alarm====**
-    {{ template "default.__text_alert_list" .Alerts.Firing }}
-
-
-    {{- end }}
-    
-    {{ if gt (len .Alerts.Resolved) 0 -}}
-    **====[烟花]recover alarm====**	
-    {{ template "default.__text_alertresovle_list" .Alerts.Resolved }}
-
-
-    {{- end }}
-    {{- end }}
-    
-    {{/* Legacy */}}
-    {{ define "legacy.title" }}{{ template "__subject" . }}{{ end }}
-    {{ define "legacy.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
-    {{ template "__text_alert_list" .Alerts.Firing }}
-    {{- end }}
-    
-    {{/* Following names for compatibility */}}
-    {{ define "ding.link.title" }}{{ template "default.title" . }}{{ end }}
-    {{ define "ding.link.content" }}{{ template "default.content" . }}{{ end }}
-```
-
-
 
 ## 18.修改原有的规则
 

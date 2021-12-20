@@ -1,0 +1,163 @@
+apiVersion: v1
+data:
+  config.yaml: |
+    ## Request timeout
+    # timeout: 5s
+    ## Customizable templates path
+    templates:
+      - /config/template.tmpl
+
+    ## You can also override default template using `default_message`
+    ## The following example to use the 'legacy' template from v0.3.0
+    # default_message:
+    #   title: '{{ template "legacy.title" . }}'
+    #   text: '{{ template "legacy.content" . }}'
+    targets:
+      webhook1:
+        url: https://oapi.dingtalk.com/robot/send?access_token=ee2d09e90b0d12
+        # secret for signature
+        secret: SECd9242c03ffac2277f0c9
+      webhook2:
+        url: https://oapi.dingtalk.com/robot/send?access_token=0102d8ed764e49
+        secret: SEC9f447197ae2795ff2bed7abd5b042e26e4ac51f
+  template.tmpl: |
+    {{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
+    {{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver }}{{ end }}
+
+    {{ define "__text_alert_list" }}{{ range . }}
+    **Labels**
+    {{ range .Labels.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+    {{ end }}
+    **Annotations**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+    {{ end }}
+    **Source:** [{{ .GeneratorURL }}]({{ .GeneratorURL }})
+    {{ end }}{{ end }}
+
+    {{ define "default.__text_alert_list" }}{{ range . }}
+    ---
+    **告警级别:** {{ .Labels.severity | upper }}
+
+    **触发时间:** {{ dateInZone "2006.01.02 15:04:05" (.StartsAt) "Asia/Shanghai" }}
+
+    **事件信息:**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+
+
+    {{ end }}
+
+    **事件标签:**
+    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | markdown | html }}
+    {{ end }}{{ end }}
+    {{ end }}
+    {{ end }}
+    {{ define "default.__text_alertresovle_list" }}{{ range . }}
+    ---
+    **告警级别:** {{ .Labels.severity | upper }}
+
+    **触发时间:** {{ dateInZone "2006.01.02 15:04:05" (.StartsAt) "Asia/Shanghai" }}
+
+    **结束时间:** {{ dateInZone "2006.01.02 15:04:05" (.EndsAt) "Asia/Shanghai" }}
+
+    **事件信息:**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | markdown | html }}
+
+
+    {{ end }}
+
+    **事件标签:**
+    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | markdown | html }}
+    {{ end }}{{ end }}
+    {{ end }}
+    {{ end }}
+
+    {{/* Default */}}
+    {{ define "default.title" }}{{ template "__subject" . }}{{ end }}
+    {{ define "default.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
+    {{ if gt (len .Alerts.Firing) 0 -}}
+
+
+    **====⚠️⚠️⚠️trigger alarm====**
+
+    {{ template "default.__text_alert_list" .Alerts.Firing }}
+
+
+    {{- end }}
+
+    {{ if gt (len .Alerts.Resolved) 0 -}}
+    **====[烟花]recover alarm====**
+    {{ template "default.__text_alertresovle_list" .Alerts.Resolved }}
+
+
+    {{- end }}
+    {{- end }}
+
+    {{/* Legacy */}}
+    {{ define "legacy.title" }}{{ template "__subject" . }}{{ end }}
+    {{ define "legacy.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
+    {{ template "__text_alert_list" .Alerts.Firing }}
+    {{- end }}
+
+    {{/* Following names for compatibility */}}
+    {{ define "ding.link.title" }}{{ template "default.title" . }}{{ end }}
+    {{ define "ding.link.content" }}{{ template "default.content" . }}{{ end }}
+kind: ConfigMap
+metadata:
+  labels:
+    app: webhook-dingtalk
+  name: webhook-dingtalk
+  namespace: monitoring
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: webhook-dingtalk
+  name: webhook-dingtalk
+  namespace: monitoring
+spec:
+  ports:
+  - name: http
+    port: 8060
+    protocol: TCP
+    targetPort: 8060
+  selector:
+    app: webhook-dingtalk
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: webhook-dingtalk
+  name: webhook-dingtalk
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webhook-dingtalk
+  template:
+    metadata:
+      labels:
+        app: webhook-dingtalk
+    spec:
+      containers:
+      - args:
+        - --web.listen-address=:8060
+        - --config.file=/config/config.yaml
+        image: marksugar/k8s-prometheus:prometheus_dingtalk_v2.0.0
+        name: webhook-dingtalk
+        ports:
+        - containerPort: 8060
+          name: http
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+      volumes:
+      - configMap:
+          name: webhook-dingtalk
+        name: config
