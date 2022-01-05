@@ -6306,9 +6306,24 @@ server {
 
 ## 22.钉钉分组
 
+webhook2是critical警报
+
+webhook1是其他警报，修改one-latest.yml内容即可
+
 ```
-kubectl apply -f many.yaml
-kustomize build  dingtalk-8060/ | kubectl -f -
-kustomize build  dingtalk-8061/ | kubectl -f -
+    targets:
+      webhook1:
+        url: https://oapi.dingtalk.com/robot/send?access_token=ee2d09e90b0d12
+        # secret for signature
+        secret: SECd9242c03ffac2277f0c9
+      webhook2:
+        url: https://oapi.dingtalk.com/robot/send?access_token=0102d8ed764e49
+        secret: SEC9f447197ae2795ff2bed7abd5b042e26e4ac51f
+```
+
+apply
+
+```
+kubectl apply -f one-latest.yml
 ```
 
