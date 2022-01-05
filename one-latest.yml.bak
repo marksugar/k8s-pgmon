@@ -1,43 +1,4 @@
 apiVersion: v1
-data: {}
-kind: Secret
-metadata:
-  name: alertmanager-main
-  namespace: monitoring
-stringData:
-  alertmanager.yaml: |-
-    global:
-      resolve_timeout: 5m
-    route:
-      group_by: ['alertname']
-      group_wait: 10s
-      group_interval: 10s
-      repeat_interval: 12h
-      receiver: 'webhookw'
-      routes:
-      - receiver: 'webhooke'
-        match:
-          severity: 'critical'
-      - receiver: 'webhookw'
-        match:
-          severity: '~(warning)$'
-    receivers:
-    - name: 'webhookw'
-      webhook_configs:
-      - send_resolved: true
-        url: 'http://webhook-dingtalk:8060/dingtalk/webhook1/send'
-    - name: 'webhooke'
-      webhook_configs:
-      - send_resolved: true
-        url: 'http://webhook-dingtalk:8060/dingtalk/webhook2/send'
-    inhibit_rules:
-      - source_match:
-          severity: 'critical'
-        target_match:
-          severity: 'warning'
-        equal: ['alertname', 'dev', 'instance']
----
-apiVersion: v1
 data:
   config.yaml: |
     ## Request timeout

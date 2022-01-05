@@ -14,7 +14,9 @@
 
 这只是一个笔记的整理，如果有错误之处请指正。如果你有兴趣一起来讨论，欢迎加入[dingtalk](https://www.dingtalk.com/)群号: 32040586
 
+其他连接：
 
+[清理kube-prometheus历史数据](https://linuxea.com/2590.html)
 
 - [1.clone代码](#1clone)
 - [2.修改副本](#2修改副本)
@@ -28,7 +30,7 @@
   - [5.1 prometheus](##51-prometheus)
   - [5.2 grafana](#52-grafana)
 - [6.修改时区](#6修改时区)
-- [7.事件webhook](#7事件webhook)
+- [7.事件webhook告警](#7事件webhook)
 - [8.监控node](#8监控node)
   - [8.1 安装docker](#81-安装docker)
 - [9.监控mysql](#9监控mysql)
@@ -4106,23 +4108,15 @@ spec:
       expr: increase(etcd_server_leader_changes_seen_total[10m]) > 2
       for: 0m
       labels:
-        severity: warning
+        severity: critical
       annotations:
         summary: Etcd leader 切换异常 (instance {{ $labels.instance }})
-        description: "10分钟内leader切换了两次\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"        
-    - alert: EtcdHighNumberOfFailedGrpcRequests
-      expr: 100 * sum by(job, instance, grpc_service, grpc_method) (rate(grpc_server_handled_total{grpc_code!="OK",job=~".*etcd.*"}[5m])) / sum by(job, instance, grpc_service, grpc_method) (rate(grpc_server_handled_total{job=~".*etcd.*"}[5m]))> 1
-      for: 10m
-      labels:
-        severity: warning
-      annotations:
-        summary: Etcd 大量失败的 GRPC 请求 (instance {{ $labels.instance }})
-        description: "在 Etcd 中检测到超过 1% 的 GRPC 请求失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"        
+        description: "10分钟内leader切换了两次\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
     - alert: EtcdHighNumberOfFailedGrpcRequests     
       expr: 100 * sum(rate(grpc_server_handled_total{job=~".*etcd.*", grpc_code!="OK"}[5m])) without (grpc_type, grpc_code) / sum(rate(grpc_server_handled_total{job=~".*etcd.*"}[5m])) without (grpc_type, grpc_code) > 5
       for: 5m
       labels:
-        severity: critical
+        severity: warning
       annotations:
         summary:  Etcd 大量失败的 GRPC 请求  (instance {{ $labels.instance }})
         description: "在 Etcd 中检测到超过 5% 的 GRPC 请求失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"                       
@@ -4130,7 +4124,7 @@ spec:
       expr: histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket{grpc_type="unary"}[1m])) by (grpc_service, grpc_method, le)) > 0.15
       for: 2m
       labels:
-        severity: warning
+        severity: critical
       annotations:
         summary: Etcd GRPC 请求缓慢(instance {{ $labels.instance }})
         description: "GRPC 请求变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"	  
@@ -4154,7 +4148,7 @@ spec:
       expr: histogram_quantile(0.99, rate(etcd_http_successful_duration_seconds_bucket[1m])) > 0.15
       for: 2m
       labels:
-        severity: warning
+        severity: critical
       annotations:
         summary: Etcd HTTP 请求缓慢 (instance {{ $labels.instance }})
         description: "Etcd HTTP 请求变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
@@ -4162,7 +4156,7 @@ spec:
       expr: histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[1m])) > 0.15
       for: 2m
       labels:
-        severity: warning
+        severity: critical
       annotations:
         summary: Etcd成员通讯缓慢 (instance {{ $labels.instance }})
         description: "Etcd 成员通信变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
@@ -4178,7 +4172,7 @@ spec:
       expr: histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[1m])) > 0.5
       for: 2m
       labels:
-        severity: warning
+        severity: critical
       annotations:
         summary: Etcd fsync 持续时间变高 (instance {{ $labels.instance }})
         description: "Etcd WAL fsync 持续时间增加，99% 超过 0.5s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"	
@@ -4189,7 +4183,7 @@ spec:
         severity: warning
       annotations:
         summary: Etcd 提交持续时间较高 (instance {{ $labels.instance }})
-        description: "Etcd 提交持续时间增加，99% 超过 0.25s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"	 
+        description: "Etcd 提交持续时间增加，99% 超过 0.25s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
 ```
 
 ### 17.2 告警分组

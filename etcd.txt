@@ -1,0 +1,99 @@
+groups:
+- name: external_etcd_alarm
+  rules:
+	- alert: EtcdInsufficientMembers
+	  expr: count(etcd_server_id) % 2 == 0
+	  for: 0m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: etcd cluster 已崩溃 (instance {{ $labels.instance }})
+	    description: "Etcd 集群应该有奇数个成员, \n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+	- alert: EtcdNoLeader
+	  expr: etcd_server_has_leader == 0
+	  for: 0m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: Etcd no Leader (instance {{ $labels.instance }})
+	    description: "Etcd cluster have no leader\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+	- alert: EtcdHighNumberOfLeaderChanges
+	  expr: increase(etcd_server_leader_changes_seen_total[10m]) > 2
+	  for: 0m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: Etcd leader 切换异常 (instance {{ $labels.instance }})
+	    description: "10分钟内leader切换了两次\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+	- alert: EtcdHighNumberOfFailedGrpcRequests     
+	  expr: 100 * sum(rate(grpc_server_handled_total{job=~".*etcd.*", grpc_code!="OK"}[5m])) without (grpc_type, grpc_code) / sum(rate(grpc_server_handled_total{job=~".*etcd.*"}[5m])) without (grpc_type, grpc_code) > 5
+	  for: 5m
+	  labels:
+	    severity: warning
+	  annotations:
+	    summary:  Etcd 大量失败的 GRPC 请求  (instance {{ $labels.instance }})
+	    description: "在 Etcd 中检测到超过 5% 的 GRPC 请求失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+	- alert: EtcdGrpcRequestsSlow
+	  expr: histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket{grpc_type="unary"}[1m])) by (grpc_service, grpc_method, le)) > 0.15
+	  for: 2m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: Etcd GRPC 请求缓慢(instance {{ $labels.instance }})
+	    description: "GRPC 请求变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+	- alert: EtcdHighNumberOfFailedHttpRequests
+	  expr: sum(rate(etcd_http_failed_total[1m])) BY (method) / sum(rate(etcd_http_received_total[1m])) BY (method) > 0.01
+	  for: 2m
+	  labels:
+	    severity: warning
+	  annotations:
+	    summary: Etcd 大量失败的 HTTP 请求 (instance {{ $labels.instance }})
+	    description: "在 Etcd 中检测到超过 1% 的 HTTP 失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"	
+	- alert: EtcdHighNumberOfFailedHttpRequests
+	  expr: sum(rate(etcd_http_failed_total[1m])) BY (method) / sum(rate(etcd_http_received_total[1m])) BY (method) > 0.05
+	  for: 2m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: Etcd 大量失败的 HTTP 请求  (instance {{ $labels.instance }})
+	    description: "在 Etcd 中检测到超过 5% 的 HTTP 失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"	 
+	- alert: EtcdHttpRequestsSlow
+	  expr: histogram_quantile(0.99, rate(etcd_http_successful_duration_seconds_bucket[1m])) > 0.15
+	  for: 2m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: Etcd HTTP 请求缓慢 (instance {{ $labels.instance }})
+	    description: "Etcd HTTP 请求变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+	- alert: EtcdMemberCommunicationSlow
+	  expr: histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[1m])) > 0.15
+	  for: 2m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: Etcd成员通讯缓慢 (instance {{ $labels.instance }})
+	    description: "Etcd 成员通信变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+	- alert: EtcdHighNumberOfFailedProposals
+	  expr: increase(etcd_server_proposals_failed_total[1h]) > 5
+	  for: 2m
+	  labels:
+	    severity: warning
+	  annotations:
+	    summary: Etcd 大量失败的proposals  (instance {{ $labels.instance }})
+	    description: "Etcd 服务器在过去一小时收到了超过 5 个失败的proposals\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+	- alert: EtcdHighFsyncDurations
+	  expr: histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[1m])) > 0.5
+	  for: 2m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: Etcd fsync 持续时间变高 (instance {{ $labels.instance }})
+	    description: "Etcd WAL fsync 持续时间增加，99% 超过 0.5s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+	- alert: EtcdHighCommitDurations
+	  expr: histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[1m])) > 0.25
+	  for: 2m
+	  labels:
+	    severity: critical
+	  annotations:
+	    summary: Etcd 提交持续时间较高 (instance {{ $labels.instance }})
+	    description: "Etcd 提交持续时间增加，99% 超过 0.25s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

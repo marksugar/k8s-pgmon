@@ -1,0 +1,650 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: node-rules
+  namespace: monitoring
+spec:
+  groups:
+    - name: external_node_alarm
+      rules:
+      - alert: node_host_lost
+        expr: up{job="external-node"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{$labels.instance}}:service is down"
+          description: "{{$labels.instance}}: lost contact for 1 minutes"
+      - alert: HostOutOfMemory
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})实例内存不足
+          description: "节点内存已用完 (剩余小于5%)已持续2分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostOutOfMemory
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 2
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例内存不足
+          description: "节点内存已用完 (剩余小于2%)已持续2分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"          
+      - alert: HostMemoryUnderMemoryPressure
+        expr: rate(node_vmstat_pgmajfault[1m]) > 1000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})实例内存压力很大
+          description: "节点内存压力很大major page错误率高已持续2分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostUnusualNetworkThroughputIn
+        expr: sum by (instance) (rate(node_network_receive_bytes_total[2m])) / 1024 / 1024 > 100
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例出现异常的input网络吞吐量
+          description: "{{ $labels.instance }}网络接口接收超过100MB/s的数据已持续5分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"          
+      - alert: HostUnusualNetworkThroughputOut
+        expr: sum by (instance) (rate(node_network_transmit_bytes_total[2m])) / 1024 / 1024 > 100
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例出现异常的output网络吞吐量
+          description: "{{ $labels.instance }}实例网络发送了超过100MB/s的数据已持续5分钟 (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostUnusualDiskReadRate
+        expr: sum by (instance) (rate(node_disk_read_bytes_total[2m])) / 1024 / 1024 > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘读取临近峰值
+          description: "{{ $labels.instance }}实例磁盘读取超过>100MB/s已持续5分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostUnusualDiskWriteRate
+        expr: sum by (instance) (rate(node_disk_written_bytes_total[2m])) / 1024 / 1024 > 60
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘写入临近峰值
+          description: "{{ $labels.instance }}实例磁盘写入超过60MB/s已持续5分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      # Please add ignored mountpoints in node_exporter parameters like
+      # "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|run)($|/)".
+      # Same rule using "node_filesystem_free_bytes" will fire when disk fills for non-root users.
+      - alert: HostOutOfDiskSpace
+        expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) node_filesystem_readonly == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘空间不足
+          description: "{{ $labels.instance }}磁盘快满了,剩余不足10%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      # Please add ignored mountpoints in node_exporter parameters like
+      # "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|run)($|/)".
+      # Same rule using "node_filesystem_free_bytes" will fire when disk fills for non-root users.
+      - alert: HostOutOfDiskSpace
+        expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 5 and ON (instance, device, mountpoint) node_filesystem_readonly == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘空间不足
+          description: "{{ $labels.instance }}磁盘快满了,剩余不足5%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"      
+      - alert: HostDiskWillFillIn24Hours
+        expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs"}[1h], 24 * 3600) < 0 and ON (instance, device, mountpoint) node_filesystem_readonly == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})在24小时内就会写满
+          description: "{{ $labels.instance }}在当前的写入速率下,预计文件系统将会在24小时内耗尽磁盘空间\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostOutOfInodes
+        expr: node_filesystem_files_free{mountpoint ="/rootfs"} / node_filesystem_files{mountpoint="/rootfs"} * 100 < 10 and ON (instance, device, mountpoint) node_filesystem_readonly{mountpoint="/rootfs"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例inodes不足
+          description: "{{ $labels.instance }}磁盘几乎用完了inodes,剩余不足10%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostInodesWillFillIn24Hours
+        expr: node_filesystem_files_free{mountpoint ="/rootfs"} / node_filesystem_files{mountpoint="/rootfs"} * 100 < 10 and predict_linear(node_filesystem_files_free{mountpoint="/rootfs"}[1h], 24 *3600) < 0 and ON (instance, device, mountpoint) node_filesystem_readonly{mountpoint="/rootfs"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host inodes will fill in 24 hours (instance {{ $labels.instance }})
+          description: "{{ $labels.instance }}以当前写入速率,文件系统预计将在未来 24小时内耗尽inode\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostUnusualDiskReadLatency
+        expr: rate(node_disk_read_time_seconds_total[1m]) / rate(node_disk_reads_completed_total[1m]) > 0.2 and rate(node_disk_reads_completed_total[1m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘读取延迟异常
+          description: "磁盘读取延迟正在增长,当下大于200ms已持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"     
+      - alert: HostUnusualDiskWriteLatency
+        expr: rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m]) > 0.1 and rate(node_disk_writes_completed_total[1m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘写入延迟异常
+          description: "磁盘写入延迟正在增长,当下大于100ms已持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"         
+      - alert: HostHighCpuLoad
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例CPU负载过高
+          description: "当前CPU load高于95%持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostCpuStealNoisyNeighbor
+        expr: avg by(instance) (rate(node_cpu_seconds_total{mode="steal"}[5m])) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})CPU steal time开始增长
+          description: "CPU steal time大于10%已持续5分钟. 这意味着CPU资源不足或vm资源竞争。当前实例计算能力将开始下降.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      # 1000 context switches is an arbitrary number.
+      # Alert threshold depends on nature of application.
+      # Please read: https://github.com/samber/awesome-prometheus-alerts/issues/58
+      - alert: HostContextSwitching
+        expr: (rate(node_context_switches_total[5m])) / (count without(cpu, mode) (node_cpu_seconds_total{mode="idle"})) > 10000
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})主机上下文切换异常
+          description: "实例上下文切换正在增长,当下超过10000/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostSwapIsFillingUp
+        expr: (1 - (node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes)) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})swap内存即将用完
+          description: "Swap使用超过80% \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostSystemdServiceCrashed
+        expr: node_systemd_unit_state{state="failed"} == 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})当前实例systemd service崩溃
+          description: "当前实例systemd service崩溃\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostKernelVersionDeviations
+        expr: count(sum(label_replace(node_uname_info, "kernel", "$1", "release", "([0-9]+.[0-9]+.[0-9]+).*")) by (kernel)) > 1
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})实例内核版本偏差
+          description: "正在运行的内核版本:\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostOomKillDetected
+        expr: increase(node_vmstat_oom_kill[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例发生OOM kill事件
+          description: "检测到OOM kill\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostNetworkReceiveErrors
+        expr: rate(node_network_receive_errs_total[2m]) / rate(node_network_receive_packets_total[2m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})主机网络接收错误
+          description: "主机 {{ $labels.instance }} interface {{ $labels.device }} 在过去五分钟内遇到了 {{ printf \"%.0f\" $value }} 接收错误。\n VALUE = { { $value }}\n 标签 = {{ $labels }}"
+      - alert: HostNetworkTransmitErrors
+        expr: rate(node_network_transmit_errs_total[2m]) / rate(node_network_transmit_packets_total[2m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})主机网络传输错误
+          description: "主机 {{ $labels.instance }} interface {{ $labels.device }} 在过去五分钟内遇到了 {{ printf \"%.0f\" $value }} 传输错误。\n VALUE = { { $value }}\n 标签 = {{ $labels }}"
+      - alert: HostNetworkInterfaceSaturated
+        expr: (rate(node_network_receive_bytes_total{device!~"^tap.*"}[1m]) + rate(node_network_transmit_bytes_total{device!~"^tap.*"}[1m])) / node_network_speed_bytes{device!~"^tap.*"} > 0.8
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})网络接口接近饱和
+          description: "\"{{ $labels.instance }}\" 上的网络接口 \"{{ $labels.interface }}\" 正在过载。\n VALUE = {{ $value }}\n LABELS = { { $labels }}"
+      - alert: HostConntrackLimit
+        expr: node_nf_conntrack_entries / node_nf_conntrack_entries_limit > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 主机 conntrack 限制(instance {{ $labels.instance }})
+          description: "conntrack 数量接近限制\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+      - alert: HostClockSkew
+        expr: (node_timex_offset_seconds > 0.05 and deriv(node_timex_offset_seconds[5m]) >= 0) or (node_timex_offset_seconds < -0.05 and deriv(node_timex_offset_seconds[5m]) <= 0)
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 主机时钟偏差(instance {{ $labels.instance }})
+          description: "检测到时钟偏差。时钟不同步。\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+      - alert: HostClockNotSynchronising
+        expr: min_over_time(node_timex_sync_status[1m]) == 0 and node_timex_maxerror_seconds >= 16
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 主机时钟不同步(instance {{ $labels.instance }})
+          description: "时钟不同步.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostEdacCorrectableErrorsDetected
+        expr: increase(node_edac_correctable_errors_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: Host EDAC Correctable Errors detected (instance {{ $labels.instance }})
+          description: "Host {{ $labels.instance }} has had {{ printf \"%.0f\" $value }} correctable memory errors reported by EDAC in the last 5 minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostEdacUncorrectableErrorsDetected
+        expr: node_edac_uncorrectable_errors_total > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host EDAC Uncorrectable Errors detected (instance {{ $labels.instance }})
+          description: "Host {{ $labels.instance }} has had {{ printf \"%.0f\" $value }} uncorrectable memory errors reported by EDAC in the last 5 minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostPhysicalComponentTooHot
+        expr: node_hwmon_temp_celsius > 75
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})宿主机组件过热
+          description: "物理硬件过热\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostNodeOvertemperatureAlarm
+        expr: node_hwmon_temp_crit_alarm_celsius == 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: 物理节点超温告警(instance {{ $labels.instance }})
+          description: "物理节点超温告警\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostRaidArrayGotInactive
+        expr: node_md_state{state="inactive"} > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary:  RAID阵列处于非活动状态(instance {{ $labels.instance }})
+          description: "RAID array {{ $labels.device }} is in degraded state due to one or more disks failures. Number of spare drives is insufficient to fix issue automatically.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostRaidDiskFailure
+        expr: node_md_disks{state="failed"} > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: RAID磁盘故障(instance {{ $labels.instance }})
+          description: "At least one device in RAID array on {{ $labels.instance }} failed. Array {{ $labels.md_device }} needs attention and possibly a disk swap\n  VALUE = {{ $value }}\n  LABELS ={{ $labels }}"
+      - alert: node_disk_Utilization_high
+        expr: rate(node_disk_io_time_seconds_total[5m]) * 100 > 90
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{$labels.instance}}: disk Utilization > {{ $value }} % "
+          description: "{{$labels.instance}}: disk Utilization > {{ $value }}. this should attract attention . disk performance seems to be problematic .for 1 minutes"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: redis-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: redisStatsAlert
+    rules:
+    - alert: redis is down
+      expr: up{job="external-redis"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{ $labels.instance }} redis is down"
+        description: "{{ $labels.instance }} redis is down "
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: rabbitmq-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: rabbitmqStatsAlert
+    rules:
+    - alert: rabbitmq is down
+      expr: up{job="external-rabbitmq"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{ $labels.instance }} rabbitmq is down"
+        description: "{{ $labels.instance }} rabbitmq is down "
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: mysql-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: MySQLStatsAlert
+    rules:
+    - alert: MySQL is down
+      expr: mysql_up == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{ $labels.instance }} MySQL is down"
+        description: "MySQL database is down. This requires immediate action!"
+    - alert: MysqlTooManyConnections(>80%)
+      expr: avg by (instance) (rate(mysql_global_status_threads_connected[1m])) / avg by (instance) (mysql_global_variables_max_connections) * 100 > 80
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: MySQL too many connections (> 80%) (instance {{ $labels.instance }})
+        description: "超过 80% 的 MySQL 连接在 {{ $labels.instance }} 上使用\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+    - alert: MysqlHighThreadsRunning
+      expr: avg by (instance) (rate(mysql_global_status_threads_running[1m])) / avg by (instance) (mysql_global_variables_max_connections) * 100 > 60
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: MySQL high threads running (instance {{ $labels.instance }})
+        description: "超过 60% 的 MySQL 连接在 {{ $labels.instance }} 上处于运行状态\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+    - alert: MysqlRestarted
+      expr: mysql_global_status_uptime < 60
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: MySQL重新启动 (instance {{ $labels.instance }})
+        description: "MySQL 刚刚重新启动，不到一分钟前在 {{ $labels.instance }} 上。\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+  ##  MySQL Slave IO 线程未运行
+  #- alert: MysqlSlaveIoThreadNotRunning
+  #  expr: mysql_slave_status_master_server_id > 0 and ON (instance) mysql_slave_status_slave_io_running == 0
+  #  for: 0m
+  #  labels:
+  #    severity: critical
+  #  annotations:
+  #    summary: MySQL Slave IO thread not running (instance {{ $labels.instance }})
+  #    description: "MySQL Slave IO thread not running on {{ $labels.instance }}\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"   
+  ##  MySQL Slave SQL 线程未运行
+  #- alert: MysqlSlaveSqlThreadNotRunning
+  #  expr: mysql_slave_status_master_server_id > 0 and ON (instance) mysql_slave_status_slave_sql_running == 0
+  #  for: 0m
+  #  labels:
+  #    severity: critical
+  #  annotations:
+  #    summary: MySQL Slave SQL thread not running (instance {{ $labels.instance }})
+  #    description: "MySQL Slave SQL thread not running on {{ $labels.instance }}\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  ## MySQL Slave 复制滞后
+  #- alert: MysqlSlaveReplicationLag
+  #  expr: mysql_slave_status_master_server_id > 0 and ON (instance) (mysql_slave_status_seconds_behind_master - mysql_slave_status_sql_delay) > 30
+  #  for: 1m
+  #  labels:
+  #    severity: critical
+  #  annotations:
+  #    summary: MySQL Slave replication lag (instance {{ $labels.instance }})
+  #    description: "MySQL replication lag on {{ $labels.instance }}\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  ## MySQL 慢查询
+  #- alert: MysqlSlowQueries
+  #  expr: increase(mysql_global_status_slow_queries[1m]) > 0
+  #  for: 2m
+  #  labels:
+  #    severity: warning
+  #  annotations:
+  #    summary: MySQL slow queries (instance {{ $labels.instance }})
+  #    description: "MySQL server mysql has some new slow query.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"  
+  ## MySQL innodb 日志写入停滞 MySQL InnoDB 日志等待
+  #- alert: MysqlInnodbLogWaits
+  #  expr: rate(mysql_global_status_innodb_log_waits[15m]) > 10
+  #  for: 0m
+  #  labels:
+  #    severity: warning
+  #  annotations:
+  #    summary: MySQL InnoDB log waits (instance {{ $labels.instance }})
+  #    description: "MySQL innodb log writes stalling\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: kafka-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: external_kafka_alarm
+    rules:
+    - alert: KafkaTopicsReplicas
+      expr: sum(kafka_topic_partition_in_sync_replica) by (topic) < 3
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: Kafka topics replicas (instance {{ $labels.instance }})
+        description: "Kafka 副本分区\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+    - alert: kafka_is_down
+      expr: up{job="external-kafka"} == 0
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: Kafka server is down (instance {{ $labels.instance }})
+        description: " {{ $labels.instance }} Kafka server is down now!"
+    - alert: KafkaConsumersGroup
+      expr: sum(kafka_consumergroup_lag) by (consumergroup) > 8888
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: Kafka consumers group (instance {{ $labels.instance }})
+        description: "Kafka 消费者组\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"   
+    - alert: KafkaTopicOffsetDecreased
+      expr: delta(kafka_burrow_partition_current_offset[1m]) < 0
+      for: 0m
+      labels:
+        severity: warning
+      annotations:
+        summary: Kafka topic offset decreased (instance {{ $labels.instance }})
+        description: "Kafka 主题偏移量已减少\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+    - alert: KafkaConsumerLag
+      expr: 'kafka_burrow_topic_partition_offset - on(partition, cluster, topic) group_right() kafka_burrow_partition_current_offset >= (kafka_burrow_topic_partition_offset offset 15m - on(partition, cluster, topic) group_right() kafka_burrow_partition_current_offset offset 15m)
+      AND kafka_burrow_topic_partition_offset - on(partition, cluster, topic) group_right() kafka_burrow_partition_current_offset > 0'
+      for: 15m
+      labels:
+        severity: critical
+      annotations:
+        summary: Kafka consumer lag (instance {{ $labels.instance }})
+        description: "卡夫卡消费者有 30 分钟的延迟并且越来越多\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"  
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: mongodb-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: external_mongodb_alarm
+    rules:
+    - alert: MongodbDown
+      expr: mongodb_up == 0
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: MongoDB Down (instance {{ $labels.instance }})
+        description: "MongoDB 实例已关闭\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+    - alert: MongodbReplicationLag
+      #expr: mongodb_mongod_replset_member_optime_date{state="PRIMARY"} - ON (set) mongodb_mongod_replset_member_optime_date{state="SECONDARY"} > 10
+      expr: avg(mongodb_mongod_replset_member_optime_date{state="PRIMARY"})-avg(mongodb_mongod_replset_member_optime_date{state="SECONDARY"}) > 10
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: MongoDB replication lag (instance {{ $labels.instance }})
+        description: "Mongodb 复制延迟超过 10 秒\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+    - alert: MongodbNumberCursorsOpen
+      expr: mongodb_mongod_metrics_cursor_open{state="total"} > 10 * 1000
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: MongoDB number cursors open (instance {{ $labels.instance }})
+        description: "MongoDB 为客户端打开了太多cursors （> 10k）\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+    - alert: MongodbCursorsTimeouts
+      expr: increase(mongodb_mongod_metrics_cursor_timed_out_total[1m]) > 100
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: MongoDB cursors timeouts (instance {{ $labels.instance }})
+        description: "太多的cursors 超时\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+    - alert: MongodbTooManyConnections
+      expr: avg by(instance) (rate(mongodb_connections{state="current"}[1m])) / avg by(instance) (sum (mongodb_connections) by (instance)) * 100 > 80
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: MongoDB too many connections (instance {{ $labels.instance }})
+        description: "连接过多 (> 80%)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: etcd-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: external_etcd_alarm
+    rules:
+    - alert: EtcdInsufficientMembers
+      expr: count(etcd_server_id) % 2 == 0
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: etcd cluster 已崩溃 (instance {{ $labels.instance }})
+        description: "Etcd 集群应该有奇数个成员, \n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
+    - alert: EtcdNoLeader
+      expr: etcd_server_has_leader == 0
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: Etcd no Leader (instance {{ $labels.instance }})
+        description: "Etcd cluster have no leader\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+    - alert: EtcdHighNumberOfLeaderChanges
+      expr: increase(etcd_server_leader_changes_seen_total[10m]) > 2
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: Etcd leader 切换异常 (instance {{ $labels.instance }})
+        description: "10分钟内leader切换了两次\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+    - alert: EtcdHighNumberOfFailedGrpcRequests     
+      expr: 100 * sum(rate(grpc_server_handled_total{job=~".*etcd.*", grpc_code!="OK"}[5m])) without (grpc_type, grpc_code) / sum(rate(grpc_server_handled_total{job=~".*etcd.*"}[5m])) without (grpc_type, grpc_code) > 5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary:  Etcd 大量失败的 GRPC 请求  (instance {{ $labels.instance }})
+        description: "在 Etcd 中检测到超过 5% 的 GRPC 请求失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"                       
+    - alert: EtcdGrpcRequestsSlow
+      expr: histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket{grpc_type="unary"}[1m])) by (grpc_service, grpc_method, le)) > 0.15
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: Etcd GRPC 请求缓慢(instance {{ $labels.instance }})
+        description: "GRPC 请求变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"   
+    - alert: EtcdHighNumberOfFailedHttpRequests
+      expr: sum(rate(etcd_http_failed_total[1m])) BY (method) / sum(rate(etcd_http_received_total[1m])) BY (method) > 0.01
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Etcd 大量失败的 HTTP 请求 (instance {{ $labels.instance }})
+        description: "在 Etcd 中检测到超过 1% 的 HTTP 失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}" 
+    - alert: EtcdHighNumberOfFailedHttpRequests
+      expr: sum(rate(etcd_http_failed_total[1m])) BY (method) / sum(rate(etcd_http_received_total[1m])) BY (method) > 0.05
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: Etcd 大量失败的 HTTP 请求  (instance {{ $labels.instance }})
+        description: "在 Etcd 中检测到超过 5% 的 HTTP 失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"  
+    - alert: EtcdHttpRequestsSlow
+      expr: histogram_quantile(0.99, rate(etcd_http_successful_duration_seconds_bucket[1m])) > 0.15
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: Etcd HTTP 请求缓慢 (instance {{ $labels.instance }})
+        description: "Etcd HTTP 请求变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+    - alert: EtcdMemberCommunicationSlow
+      expr: histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[1m])) > 0.15
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: Etcd成员通讯缓慢 (instance {{ $labels.instance }})
+        description: "Etcd 成员通信变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+    - alert: EtcdHighNumberOfFailedProposals
+      expr: increase(etcd_server_proposals_failed_total[1h]) > 5
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Etcd 大量失败的proposals  (instance {{ $labels.instance }})
+        description: "Etcd 服务器在过去一小时收到了超过 5 个失败的proposals\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+    - alert: EtcdHighFsyncDurations
+      expr: histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[1m])) > 0.5
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: Etcd fsync 持续时间变高 (instance {{ $labels.instance }})
+        description: "Etcd WAL fsync 持续时间增加，99% 超过 0.5s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"  
+    - alert: EtcdHighCommitDurations
+      expr: histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[1m])) > 0.25
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: Etcd 提交持续时间较高 (instance {{ $labels.instance }})
+        description: "Etcd 提交持续时间增加，99% 超过 0.25s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"  
