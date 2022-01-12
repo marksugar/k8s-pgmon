@@ -3414,66 +3414,82 @@ spec:
         annotations:
           summary: "{{$labels.instance}}:service is down"
           description: "{{$labels.instance}}: lost contact for 1 minutes"
-      - alert: HostOutOfMemory
-        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 5
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: (instance {{ $labels.instance }})实例内存不足
-          description: "节点内存已用完 (剩余小于5%)已持续2分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-      - alert: HostOutOfMemory
-        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 2
-        for: 2m
+      - alert: HostOutOfMemory10
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+        for: 1m
         labels:
           severity: critical
         annotations:
           summary: (instance {{ $labels.instance }})实例内存不足
-          description: "节点内存已用完 (剩余小于2%)已持续2分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"          
+          description: "节点内存已用完 (剩余小于10%)已持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostOutOfMemory2
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例内存不足,可能会发生内存溢出
+          description: "节点内存已用完 (剩余小于2%)已持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"          
       - alert: HostMemoryUnderMemoryPressure
         expr: rate(node_vmstat_pgmajfault[1m]) > 1000
-        for: 2m
+        for: 1m
         labels:
           severity: warning
         annotations:
           summary: (instance {{ $labels.instance }})实例内存压力很大
-          description: "节点内存压力很大major page错误率高已持续2分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          description: "节点内存压力很大major page错误率高已持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
       - alert: HostUnusualNetworkThroughputIn
         expr: sum by (instance) (rate(node_network_receive_bytes_total[2m])) / 1024 / 1024 > 100
-        for: 5m
+        for: 2m
         labels:
           severity: critical
         annotations:
           summary: (instance {{ $labels.instance }})实例出现异常的input网络吞吐量
-          description: "{{ $labels.instance }}网络接口接收超过100MB/s的数据已持续5分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"          
+          description: "{{ $labels.instance }}网络接口接收超过100MB/s的数据已持续2分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"          
       - alert: HostUnusualNetworkThroughputOut
         expr: sum by (instance) (rate(node_network_transmit_bytes_total[2m])) / 1024 / 1024 > 100
-        for: 5m
+        for: 2m
         labels:
           severity: critical
         annotations:
           summary: (instance {{ $labels.instance }})实例出现异常的output网络吞吐量
-          description: "{{ $labels.instance }}实例网络发送了超过100MB/s的数据已持续5分钟 (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-      - alert: HostUnusualDiskReadRate
-        expr: sum by (instance) (rate(node_disk_read_bytes_total[2m])) / 1024 / 1024 > 100
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: (instance {{ $labels.instance }})实例磁盘读取临近峰值
-          description: "{{ $labels.instance }}实例磁盘读取超过>100MB/s已持续5分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-      - alert: HostUnusualDiskWriteRate
-        expr: sum by (instance) (rate(node_disk_written_bytes_total[2m])) / 1024 / 1024 > 60
-        for: 5m
+          description: "{{ $labels.instance }}实例网络发送了超过100MB/s的数据已持续2分钟 (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostUnusualDiskReadRatecritical
+        expr: sum by (instance) (rate(node_disk_read_bytes_total[1m])) / 1024 / 1024 > 100
+        for: 1m
         labels:
           severity: critical
         annotations:
-          summary: (instance {{ $labels.instance }})实例磁盘写入临近峰值
-          description: "{{ $labels.instance }}实例磁盘写入超过60MB/s已持续5分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          summary: (instance {{ $labels.instance }})实例磁盘读取过高
+          description: "{{ $labels.instance }}实例磁盘读取超过>100MB/s avg [HDD]已持续1分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostUnusualDiskReadRatewarning
+        expr: sum by (instance) (rate(node_disk_read_bytes_total[1m])) / 1024 / 1024 > 60
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘读取过高
+          description: "{{ $labels.instance }}实例磁盘读取超过>60MB/s avg [HDD]已持续1分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"	
+      - alert: HostUnusualDiskWriteRatewarning
+        expr: sum by (instance) (rate(node_disk_written_bytes_total[1m])) / 1024 / 1024 > 60
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘写入过高
+          description: "{{ $labels.instance }}实例磁盘写入超过60MB/s avg [HDD]已持续1分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"		  
+      - alert: HostUnusualDiskWriteRatecritical
+        expr: sum by (instance) (rate(node_disk_written_bytes_total[2m])) / 1024 / 1024 > 60
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例磁盘写入过高
+          description: "{{ $labels.instance }}实例磁盘写入超过60MB/s avg [HDD]已持续2分钟 \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"		  		 
       # Please add ignored mountpoints in node_exporter parameters like
       # "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|run)($|/)".
       # Same rule using "node_filesystem_free_bytes" will fire when disk fills for non-root users.
-      - alert: HostOutOfDiskSpace
+      - alert: HostOutOfDiskSpacefree
         expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) node_filesystem_readonly == 0
         for: 2m
         labels:
@@ -3484,7 +3500,7 @@ spec:
       # Please add ignored mountpoints in node_exporter parameters like
       # "--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|run)($|/)".
       # Same rule using "node_filesystem_free_bytes" will fire when disk fills for non-root users.
-      - alert: HostOutOfDiskSpace
+      - alert: HostOutOfDiskSpacehigh
         expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 5 and ON (instance, device, mountpoint) node_filesystem_readonly == 0
         for: 1m
         labels:
@@ -3522,7 +3538,7 @@ spec:
         labels:
           severity: critical
         annotations:
-          summary: (instance {{ $labels.instance }})实例磁盘读取延迟异常
+          summary: (instance {{ $labels.instance }})实例磁盘读取延迟过高
           description: "磁盘读取延迟正在增长,当下大于200ms已持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"		  
       - alert: HostUnusualDiskWriteLatency
         expr: rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m]) > 0.1 and rate(node_disk_writes_completed_total[1m]) > 0
@@ -3530,16 +3546,24 @@ spec:
         labels:
           severity: warning
         annotations:
-          summary: (instance {{ $labels.instance }})实例磁盘写入延迟异常
+          summary: (instance {{ $labels.instance }})实例磁盘写入延迟过高
           description: "磁盘写入延迟正在增长,当下大于100ms已持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"      	  
-      - alert: HostHighCpuLoad
-        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 95
+      - alert: HostHighCpuLoad85
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 85
         for: 1m
         labels:
           severity: critical
         annotations:
           summary: (instance {{ $labels.instance }})实例CPU负载过高
-          description: "当前CPU load高于95%持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+          description: "当前CPU load高于85%持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+      - alert: HostHighCpuLoad75
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 75
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: (instance {{ $labels.instance }})实例CPU负载过高
+          description: "当前CPU load高于75%持续1分钟\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"		  
       - alert: HostCpuStealNoisyNeighbor
         expr: avg by(instance) (rate(node_cpu_seconds_total{mode="steal"}[5m])) * 100 > 10
         for: 5m
@@ -3573,7 +3597,7 @@ spec:
         labels:
           severity: critical
         annotations:
-          summary: (instance {{ $labels.instance }})当前实例systemd service崩溃
+          summary: 请注意，(instance {{ $labels.instance }})当前实例systemd service服务已崩溃
           description: "当前实例systemd service崩溃\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
       - alert: HostKernelVersionDeviations
         expr: count(sum(label_replace(node_uname_info, "kernel", "$1", "release", "([0-9]+.[0-9]+.[0-9]+).*")) by (kernel)) > 1
@@ -3631,14 +3655,6 @@ spec:
         annotations:
           summary: 主机时钟偏差(instance {{ $labels.instance }})
           description: "检测到时钟偏差。时钟不同步。\n VALUE = {{ $value }}\n LABELS = {{ $labels }}"
-      - alert: HostClockNotSynchronising
-        expr: min_over_time(node_timex_sync_status[1m]) == 0 and node_timex_maxerror_seconds >= 16
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: 主机时钟不同步(instance {{ $labels.instance }})
-          description: "时钟不同步.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
       - alert: HostEdacCorrectableErrorsDetected
         expr: increase(node_edac_correctable_errors_total[1m]) > 0
         for: 0m
@@ -3655,38 +3671,6 @@ spec:
         annotations:
           summary: Host EDAC Uncorrectable Errors detected (instance {{ $labels.instance }})
           description: "Host {{ $labels.instance }} has had {{ printf \"%.0f\" $value }} uncorrectable memory errors reported by EDAC in the last 5 minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-      - alert: HostPhysicalComponentTooHot
-        expr: node_hwmon_temp_celsius > 75
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: (instance {{ $labels.instance }})宿主机组件过热
-          description: "物理硬件过热\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-      - alert: HostNodeOvertemperatureAlarm
-        expr: node_hwmon_temp_crit_alarm_celsius == 1
-        for: 0m
-        labels:
-          severity: critical
-        annotations:
-          summary: 物理节点超温告警(instance {{ $labels.instance }})
-          description: "物理节点超温告警\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-      - alert: HostRaidArrayGotInactive
-        expr: node_md_state{state="inactive"} > 0
-        for: 0m
-        labels:
-          severity: critical
-        annotations:
-          summary:  RAID阵列处于非活动状态(instance {{ $labels.instance }})
-          description: "RAID array {{ $labels.device }} is in degraded state due to one or more disks failures. Number of spare drives is insufficient to fix issue automatically.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-      - alert: HostRaidDiskFailure
-        expr: node_md_disks{state="failed"} > 0
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: RAID磁盘故障(instance {{ $labels.instance }})
-          description: "At least one device in RAID array on {{ $labels.instance }} failed. Array {{ $labels.md_device }} needs attention and possibly a disk swap\n  VALUE = {{ $value }}\n  LABELS ={{ $labels }}"
       - alert: node_disk_Utilization_high
         expr: rate(node_disk_io_time_seconds_total[5m]) * 100 > 90
         for: 1m
@@ -3694,7 +3678,7 @@ spec:
           severity: critical
         annotations:
           summary: "{{$labels.instance}}: disk Utilization > {{ $value }} % "
-          description: "{{$labels.instance}}: disk Utilization > {{ $value }}. this should attract attention . disk performance seems to be problematic .for 1 minutes"  
+          description: "{{$labels.instance}}: disk Utilization > {{ $value }}. this should attract attention . disk performance seems to be problematic .for 1 minutes"
 ```
 
 ##### 磁盘使用率
@@ -4102,24 +4086,32 @@ spec:
       labels:
         severity: critical
       annotations:
-        summary: Etcd no Leader (instance {{ $labels.instance }})
+        summary: Etcd 选举失败 (instance {{ $labels.instance }})
         description: "Etcd cluster have no leader\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
     - alert: EtcdHighNumberOfLeaderChanges
       expr: increase(etcd_server_leader_changes_seen_total[10m]) > 2
       for: 0m
       labels:
-        severity: critical
-      annotations:
-        summary: Etcd leader 切换异常 (instance {{ $labels.instance }})
-        description: "10分钟内leader切换了两次\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
-    - alert: EtcdHighNumberOfFailedGrpcRequests     
-      expr: 100 * sum(rate(grpc_server_handled_total{job=~".*etcd.*", grpc_code!="OK"}[5m])) without (grpc_type, grpc_code) / sum(rate(grpc_server_handled_total{job=~".*etcd.*"}[5m])) without (grpc_type, grpc_code) > 5
-      for: 5m
-      labels:
         severity: warning
       annotations:
-        summary:  Etcd 大量失败的 GRPC 请求  (instance {{ $labels.instance }})
-        description: "在 Etcd 中检测到超过 5% 的 GRPC 请求失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"                       
+        summary: Etcd leader 切换异常 (instance {{ $labels.instance }})
+        description: "10分钟内leader切换了两次\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"        
+    #- alert: EtcdHighNumberOfFailedGrpcRequestswarning
+    #  expr: 100 * sum by(job, instance, grpc_service, grpc_method) (rate(grpc_server_handled_total{grpc_code!="OK",job=~".*etcd.*"}[5m])) / sum by(job, instance, grpc_service, grpc_method) (rate(grpc_server_handled_total{job=~".*etcd.*"}[5m]))> 1
+    #  for: 10m
+    #  labels:
+    #    severity: warning
+    #  annotations:
+    #    summary: Etcd 大量失败的 GRPC 请求 (instance {{ $labels.instance }})
+    #    description: "在 Etcd 中检测到超过 1% 的 GRPC 请求失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"        
+    #- alert: EtcdHighNumberOfFailedGrpcRequestscritical     
+    #  expr: 100 * sum(rate(grpc_server_handled_total{job=~".*etcd.*", grpc_code!="OK"}[5m])) without (grpc_type, grpc_code) / sum(rate(grpc_server_handled_total{job=~".*etcd.*"}[5m])) without (grpc_type, grpc_code) > 5
+    #  for: 5m
+    #  labels:
+    #    severity: critical
+    #  annotations:
+    #    summary:  Etcd 大量失败的 GRPC 请求  (instance {{ $labels.instance }})
+    #    description: "在 Etcd 中检测到超过 5% 的 GRPC 请求失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"                       
     - alert: EtcdGrpcRequestsSlow
       expr: histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket{grpc_type="unary"}[1m])) by (grpc_service, grpc_method, le)) > 0.15
       for: 2m
@@ -4128,7 +4120,7 @@ spec:
       annotations:
         summary: Etcd GRPC 请求缓慢(instance {{ $labels.instance }})
         description: "GRPC 请求变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"	  
-    - alert: EtcdHighNumberOfFailedHttpRequests
+    - alert: EtcdHighNumberOfFailedHttpRequestswarning
       expr: sum(rate(etcd_http_failed_total[1m])) BY (method) / sum(rate(etcd_http_received_total[1m])) BY (method) > 0.01
       for: 2m
       labels:
@@ -4136,7 +4128,7 @@ spec:
       annotations:
         summary: Etcd 大量失败的 HTTP 请求 (instance {{ $labels.instance }})
         description: "在 Etcd 中检测到超过 1% 的 HTTP 失败\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"	
-    - alert: EtcdHighNumberOfFailedHttpRequests
+    - alert: EtcdHighNumberOfFailedHttpRequestscritical
       expr: sum(rate(etcd_http_failed_total[1m])) BY (method) / sum(rate(etcd_http_received_total[1m])) BY (method) > 0.05
       for: 2m
       labels:
@@ -4148,18 +4140,18 @@ spec:
       expr: histogram_quantile(0.99, rate(etcd_http_successful_duration_seconds_bucket[1m])) > 0.15
       for: 2m
       labels:
-        severity: critical
+        severity: warning
       annotations:
         summary: Etcd HTTP 请求缓慢 (instance {{ $labels.instance }})
         description: "Etcd HTTP 请求变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
     - alert: EtcdMemberCommunicationSlow
-      expr: histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[1m])) > 0.15
+      expr: histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[1m])) > 0.2
       for: 2m
       labels:
         severity: critical
       annotations:
         summary: Etcd成员通讯缓慢 (instance {{ $labels.instance }})
-        description: "Etcd 成员通信变慢，99% 超过 0.15s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+        description: "Etcd 成员通信变慢，99% 超过 0.2s\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
     - alert: EtcdHighNumberOfFailedProposals
       expr: increase(etcd_server_proposals_failed_total[1h]) > 5
       for: 2m
